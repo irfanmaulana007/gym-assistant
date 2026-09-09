@@ -3,10 +3,10 @@
 Mobile-first web frontend for Gym Assistant, built with **React + Vite +
 TypeScript**. Consumes the [API](../api) over JSON/HTTP.
 
-> **Status:** foundation in place — Vite + React + TS scaffold, a typed API
-> client (JWT injection + central 401 handling), React Query, mobile-first
-> design system, and the auth screens (register/login) with protected routing.
-> Routines/exercises/session screens land next. See
+> **Status:** feature-complete for Phase 1 — auth, workout-day (routine) and
+> exercise management, a live session experience (running timer, pause/resume/
+> stop, exercise checklist, weight & duration logging, ad-hoc exercises, and a
+> post-workout summary), and per-exercise progression history. See
 > [`prd/0001`](../../prd/0001-workout-tracking-foundation.md) and
 > [`prd/0002`](../../prd/0002-session-lifecycle-and-metrics.md).
 
