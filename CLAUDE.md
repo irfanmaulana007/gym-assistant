@@ -51,6 +51,8 @@ rows, don't denormalize.
   and `build` before considering work done.
 - **Reproduce bugs first** — RED → fix root cause → GREEN → regression guard.
   Verify the full round-trip (write *and* read), not just one half.
+- **Test every change** — every code change ships with a unit test *and* an e2e
+  test under [`tests/`](tests/) (`unit-test/`, `e2e/`). See `.claude/rules/testing.md`.
 - **Git** — never push to `main`; branch first. Commit/PR titles:
   `[scope][type] Message` (scopes: `api`, `web`, `mobile`, `migration`,
   `scripts`, `docs`). Open PRs ready for review (not draft).
@@ -60,4 +62,4 @@ rows, don't denormalize.
 
 See the authoritative rules in [`.claude/rules/`](.claude/rules/):
 `prd-documents.md`, `git-workflow.md`, `development-best-practices.md`,
-`bug-fixing.md`, `pr-labeling.md`.
+`bug-fixing.md`, `testing.md`, `pr-labeling.md`.
