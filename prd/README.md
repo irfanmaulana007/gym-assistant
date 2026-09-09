@@ -1,0 +1,29 @@
+# Product Requirement Documents (PRD)
+
+This directory holds Product Requirement Documents for gym-assistant. Each PRD
+captures the problem, goals, design, and rollout plan for a substantial change
+**before** implementation, so the approach can be reviewed and agreed on up
+front.
+
+## Naming convention
+
+```
+prd/NNNN-short-kebab-title.md
+```
+
+`NNNN` is a zero-padded sequence number (`0001`, `0002`, …). Keep the title
+short and descriptive. See [`.claude/rules/prd-documents.md`](../.claude/rules/prd-documents.md)
+for the full document structure.
+
+## Index
+
+| # | Title | Status | App |
+|---|-------|--------|-----|
+| _No PRDs yet_ | | | |
+
+## Status values
+
+- **Draft** — under review, not yet approved for implementation.
+- **Approved** — signed off; implementation may proceed.
+- **Implemented** — shipped; the PRD is retained as a design record.
+- **Superseded** — replaced by a later PRD (link to it).
