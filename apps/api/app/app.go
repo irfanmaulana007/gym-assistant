@@ -46,9 +46,16 @@ func New(pool *pgxpool.Pool, cfg Config) http.Handler {
 		issuer := tokens.NewIssuer(cfg.JWTSecret, ttl)
 
 		userRepo := repository.NewUserRepository(pool)
+		routineRepo := repository.NewRoutineRepository(pool)
+		exerciseRepo := repository.NewExerciseRepository(pool)
+
 		authSvc := service.NewAuthService(userRepo, issuer)
+		routineSvc := service.NewRoutineService(routineRepo, exerciseRepo)
+		exerciseSvc := service.NewExerciseService(exerciseRepo)
 
 		deps.Auth = handler.NewAuthHandler(authSvc)
+		deps.Routine = handler.NewRoutineHandler(routineSvc)
+		deps.Exercise = handler.NewExerciseHandler(exerciseSvc)
 		deps.Verifier = issuer
 	}
 
