@@ -19,7 +19,7 @@ for the full document structure.
 
 | # | Title | Status | App |
 |---|-------|--------|-----|
-| _No PRDs yet_ | | | |
+| [0001](0001-workout-tracking-foundation.md) | Workout Tracking Foundation | Draft | api, web |
 
 ## Status values
 
