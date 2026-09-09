@@ -1,0 +1,13 @@
+{
+  "name": "gym-assistant",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Gym Assistant monorepo — workspace root. JS/TS deps hoist here so the shared tests/ tree can resolve them (per .claude/rules/testing.md).",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "test:web": "npm --workspace apps/web run test",
+    "test:web:e2e": "npm --workspace apps/web run test:e2e"
+  }
+}
