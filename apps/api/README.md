@@ -4,9 +4,33 @@ Backend service for Gym Assistant. A **client-agnostic JSON API** built with
 **Go** and **PostgreSQL**, designed so the web app (now) and a native mobile app
 (later) share one contract.
 
-> **Status:** not implemented yet. This directory holds the intended structure
-> and conventions; see [`prd/0001`](../../prd/0001-workout-tracking-foundation.md)
-> for the endpoints and rollout plan.
+> **Status:** foundation in place — Go module, config, DB pool + migration
+> runner, initial schema (PRD 0001 + 0002 combined), and health/readiness
+> probes. Auth, routines/exercises, and sessions land in subsequent PRs. See
+> [`prd/0001`](../../prd/0001-workout-tracking-foundation.md) and
+> [`prd/0002`](../../prd/0002-session-lifecycle-and-metrics.md).
+
+## Running locally
+
+```bash
+cp .env.example .env            # fill in DATABASE_URL and JWT_SECRET
+make run                        # applies migrations, then serves on $PORT
+
+# health checks
+curl localhost:8080/healthz     # liveness
+curl localhost:8080/readyz      # readiness (pings the database)
+```
+
+Tests live in the repo-root [`tests/`](../../tests) module (per
+`.claude/rules/testing.md`): unit tests under `tests/unit-test/api`, black-box
+e2e under `tests/e2e/api`. DB-backed e2e tests run when `TEST_DATABASE_URL` is
+set and skip otherwise:
+
+```bash
+cd ../../tests
+go test ./unit-test/...
+TEST_DATABASE_URL="postgres://…" go test ./e2e/...
+```
 
 ## Tech
 
