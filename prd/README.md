@@ -20,6 +20,7 @@ for the full document structure.
 | # | Title | Status | App |
 |---|-------|--------|-----|
 | [0001](0001-workout-tracking-foundation.md) | Workout Tracking Foundation | Draft | api, web |
+| [0002](0002-session-lifecycle-and-metrics.md) | Session Lifecycle, Exercise Types & Metrics | Draft | api, web |
 
 ## Status values
 

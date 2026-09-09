@@ -7,6 +7,13 @@
 | Created | 2026-09-09 |
 | Updated | 2026-09-09 |
 | App | api, web |
+| Extended by | [PRD 0002 — Session Lifecycle, Exercise Types & Metrics](0002-session-lifecycle-and-metrics.md) |
+
+> **Note:** [PRD 0002](0002-session-lifecycle-and-metrics.md) extends and revises
+> this foundation — it adds a session lifecycle (start/pause/stop), a live
+> exercise checklist, duration-based exercises, muscle-group tracking, and a
+> metrics-first data model. Read the two together; where they overlap (the
+> session/exercise/set model), 0002 is the current design.
 
 ## 1. Summary
 
