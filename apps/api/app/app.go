@@ -48,14 +48,17 @@ func New(pool *pgxpool.Pool, cfg Config) http.Handler {
 		userRepo := repository.NewUserRepository(pool)
 		routineRepo := repository.NewRoutineRepository(pool)
 		exerciseRepo := repository.NewExerciseRepository(pool)
+		sessionRepo := repository.NewSessionRepository(pool)
 
 		authSvc := service.NewAuthService(userRepo, issuer)
 		routineSvc := service.NewRoutineService(routineRepo, exerciseRepo)
 		exerciseSvc := service.NewExerciseService(exerciseRepo)
+		sessionSvc := service.NewSessionService(sessionRepo)
 
 		deps.Auth = handler.NewAuthHandler(authSvc)
 		deps.Routine = handler.NewRoutineHandler(routineSvc)
 		deps.Exercise = handler.NewExerciseHandler(exerciseSvc)
+		deps.Session = handler.NewSessionHandler(sessionSvc)
 		deps.Verifier = issuer
 	}
 

@@ -19,6 +19,7 @@ type Deps struct {
 	Auth     *handler.AuthHandler
 	Routine  *handler.RoutineHandler
 	Exercise *handler.ExerciseHandler
+	Session  *handler.SessionHandler
 	Verifier middleware.TokenVerifier
 }
 
@@ -65,6 +66,25 @@ func New(deps Deps) http.Handler {
 				r.Patch("/exercises/{id}", deps.Exercise.Update)
 				r.Delete("/exercises/{id}", deps.Exercise.Delete)
 				r.Get("/exercises/{id}/history", deps.Exercise.History)
+			}
+
+			if deps.Session != nil {
+				// Lifecycle.
+				r.Post("/routines/{routineId}/sessions", deps.Session.Start)
+				r.Get("/sessions", deps.Session.List)
+				r.Get("/sessions/{id}", deps.Session.Get)
+				r.Post("/sessions/{id}/pause", deps.Session.Pause)
+				r.Post("/sessions/{id}/resume", deps.Session.Resume)
+				r.Post("/sessions/{id}/complete", deps.Session.Complete)
+				r.Post("/sessions/{id}/abandon", deps.Session.Abandon)
+				// Checklist & ad-hoc.
+				r.Post("/sessions/{id}/exercises", deps.Session.AddExercise)
+				r.Patch("/session-exercises/{id}", deps.Session.UpdateSessionExercise)
+				r.Delete("/session-exercises/{id}", deps.Session.DeleteSessionExercise)
+				// Set entries.
+				r.Post("/session-exercises/{id}/entries", deps.Session.CreateEntry)
+				r.Patch("/entries/{id}", deps.Session.UpdateEntry)
+				r.Delete("/entries/{id}", deps.Session.DeleteEntry)
 			}
 		})
 	})
