@@ -21,6 +21,10 @@ var WeightUnits = []string{"kg", "lb"}
 // DistanceUnits mirrors the distance_unit enum.
 var DistanceUnits = []string{"km", "mi", "m"}
 
+// SessionExerciseStatuses mirrors the session_exercise_status enum — the
+// checklist checkbox states.
+var SessionExerciseStatuses = []string{"pending", "in_progress", "completed", "skipped"}
+
 func in(set []string, v string) bool {
 	for _, s := range set {
 		if s == v {
@@ -41,3 +45,6 @@ func IsWeightUnit(v string) bool { return in(WeightUnits, v) }
 
 // IsDistanceUnit reports whether v is a valid distance unit.
 func IsDistanceUnit(v string) bool { return in(DistanceUnits, v) }
+
+// IsSessionExerciseStatus reports whether v is a valid checklist status.
+func IsSessionExerciseStatus(v string) bool { return in(SessionExerciseStatuses, v) }
