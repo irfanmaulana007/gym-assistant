@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 )
 
@@ -84,6 +85,8 @@ func WriteError(w http.ResponseWriter, err error) {
 		Error(w, apiErr.Status, apiErr.Code, apiErr.Message, apiErr.Details)
 		return
 	}
+	// Internal errors are logged server-side (never exposed to the client).
+	slog.Error("unhandled internal error", "error", err)
 	Error(w, http.StatusInternalServerError, CodeInternal, "an unexpected error occurred", nil)
 }
 
