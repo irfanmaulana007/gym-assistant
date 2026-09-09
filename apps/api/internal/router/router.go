@@ -8,13 +8,16 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/handler"
+	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/middleware"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/httpx"
 )
 
 // Deps holds the dependencies routes are built from. Fields are added as later
 // feature PRs introduce their handlers.
 type Deps struct {
-	Health *handler.HealthHandler
+	Health   *handler.HealthHandler
+	Auth     *handler.AuthHandler
+	Verifier middleware.TokenVerifier
 }
 
 // New builds the top-level HTTP router.
@@ -31,6 +34,18 @@ func New(deps Deps) http.Handler {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", deps.Health.Live)
+
+		if deps.Auth != nil {
+			r.Route("/auth", func(r chi.Router) {
+				r.Post("/register", deps.Auth.Register)
+				r.Post("/login", deps.Auth.Login)
+				// Authenticated profile.
+				r.Group(func(r chi.Router) {
+					r.Use(middleware.RequireAuth(deps.Verifier))
+					r.Get("/me", deps.Auth.Me)
+				})
+			})
+		}
 	})
 
 	r.NotFound(func(w http.ResponseWriter, _ *http.Request) {

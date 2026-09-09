@@ -7,33 +7,52 @@ package app
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/database"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/handler"
+	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/repository"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/router"
+	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/service"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/migrations"
+	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/tokens"
 )
 
 // Config carries the runtime values handlers/middleware need. It mirrors the
 // subset of internal/config the assembled app depends on, so tests can build an
 // app without loading the whole environment.
 type Config struct {
-	JWTSecret string
+	JWTSecret      string
+	AccessTokenTTL time.Duration
 }
 
 // New builds the top-level HTTP handler wired to the given database pool.
 // pool may be nil for tests that only exercise routes needing no database
-// (e.g. liveness).
-func New(pool *pgxpool.Pool, _ Config) http.Handler {
+// (e.g. liveness); auth and other DB-backed routes are only mounted when a pool
+// is provided.
+func New(pool *pgxpool.Pool, cfg Config) http.Handler {
 	var pinger handler.Pinger
+	deps := router.Deps{}
+
 	if pool != nil {
 		pinger = pool
+
+		ttl := cfg.AccessTokenTTL
+		if ttl <= 0 {
+			ttl = time.Hour
+		}
+		issuer := tokens.NewIssuer(cfg.JWTSecret, ttl)
+
+		userRepo := repository.NewUserRepository(pool)
+		authSvc := service.NewAuthService(userRepo, issuer)
+
+		deps.Auth = handler.NewAuthHandler(authSvc)
+		deps.Verifier = issuer
 	}
-	deps := router.Deps{
-		Health: handler.NewHealthHandler(pinger),
-	}
+
+	deps.Health = handler.NewHealthHandler(pinger)
 	return router.New(deps)
 }
 
