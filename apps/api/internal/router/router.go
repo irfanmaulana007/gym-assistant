@@ -1,0 +1,44 @@
+// Package router registers all HTTP routes under /api/v1 and wires handlers.
+package router
+
+import (
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
+
+	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/handler"
+	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/httpx"
+)
+
+// Deps holds the dependencies routes are built from. Fields are added as later
+// feature PRs introduce their handlers.
+type Deps struct {
+	Health *handler.HealthHandler
+}
+
+// New builds the top-level HTTP router.
+func New(deps Deps) http.Handler {
+	r := chi.NewRouter()
+
+	r.Use(chimw.RequestID)
+	r.Use(chimw.RealIP)
+	r.Use(chimw.Recoverer)
+
+	// Health/readiness probes live outside the versioned API surface.
+	r.Get("/healthz", deps.Health.Live)
+	r.Get("/readyz", deps.Health.Ready)
+
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/health", deps.Health.Live)
+	})
+
+	r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
+		httpx.Error(w, http.StatusNotFound, httpx.CodeNotFound, "resource not found", nil)
+	})
+	r.MethodNotAllowed(func(w http.ResponseWriter, _ *http.Request) {
+		httpx.Error(w, http.StatusMethodNotAllowed, httpx.CodeBadRequest, "method not allowed", nil)
+	})
+
+	return r
+}
