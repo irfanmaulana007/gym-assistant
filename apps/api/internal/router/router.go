@@ -17,6 +17,8 @@ import (
 type Deps struct {
 	Health   *handler.HealthHandler
 	Auth     *handler.AuthHandler
+	Routine  *handler.RoutineHandler
+	Exercise *handler.ExerciseHandler
 	Verifier middleware.TokenVerifier
 }
 
@@ -36,16 +38,35 @@ func New(deps Deps) http.Handler {
 		r.Get("/health", deps.Health.Live)
 
 		if deps.Auth != nil {
-			r.Route("/auth", func(r chi.Router) {
-				r.Post("/register", deps.Auth.Register)
-				r.Post("/login", deps.Auth.Login)
-				// Authenticated profile.
-				r.Group(func(r chi.Router) {
-					r.Use(middleware.RequireAuth(deps.Verifier))
-					r.Get("/me", deps.Auth.Me)
-				})
-			})
+			r.Post("/auth/register", deps.Auth.Register)
+			r.Post("/auth/login", deps.Auth.Login)
 		}
+
+		// Everything below requires a valid bearer token.
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.RequireAuth(deps.Verifier))
+
+			if deps.Auth != nil {
+				r.Get("/auth/me", deps.Auth.Me)
+			}
+
+			if deps.Routine != nil {
+				r.Get("/routines", deps.Routine.List)
+				r.Post("/routines", deps.Routine.Create)
+				r.Patch("/routines/reorder", deps.Routine.Reorder)
+				r.Get("/routines/{id}", deps.Routine.Get)
+				r.Patch("/routines/{id}", deps.Routine.Update)
+				r.Delete("/routines/{id}", deps.Routine.Delete)
+			}
+
+			if deps.Exercise != nil {
+				r.Post("/routines/{routineId}/exercises", deps.Exercise.Create)
+				r.Patch("/routines/{routineId}/exercises/reorder", deps.Exercise.Reorder)
+				r.Patch("/exercises/{id}", deps.Exercise.Update)
+				r.Delete("/exercises/{id}", deps.Exercise.Delete)
+				r.Get("/exercises/{id}/history", deps.Exercise.History)
+			}
+		})
 	})
 
 	r.NotFound(func(w http.ResponseWriter, _ *http.Request) {
