@@ -41,9 +41,11 @@ rows, don't denormalize.
 
 ## Working rules (enforced — see `.claude/rules/`)
 
-- **Design before code** — substantial changes get a PRD in [`prd/`](prd/) first,
-  using the `NNNN-short-kebab-title.md` convention and the standard metadata
-  table. Update the index in [`prd/README.md`](prd/README.md).
+- **Design before code (PRD first)** — any big/major feature MUST start with a
+  PRD in [`prd/`](prd/), written and approved *before* any implementation code
+  changes. Use the `NNNN-short-kebab-title.md` convention and the standard
+  metadata table, and update the index in [`prd/README.md`](prd/README.md). See
+  `prd-documents.md` for what counts as "major" and what's exempt.
 - **Stay scoped to one app** — follow the conventions and tooling of the app you
   are touching; don't introduce cross-app patterns unless the change is genuinely
   cross-cutting.
