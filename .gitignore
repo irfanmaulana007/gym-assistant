@@ -8,6 +8,8 @@
 # Binaries
 apps/api/bin/
 apps/api/server
+# air hot-reload build dir (`make dev`)
+apps/api/tmp/
 *.exe
 *.test
 *.out

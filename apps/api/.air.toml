@@ -1,0 +1,18 @@
+# air (https://github.com/air-verse/air) config for `make dev`: rebuilds and
+# restarts the API server on source changes. Used only in local development.
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/server ./cmd/server"
+  bin = "./tmp/server"
+  delay = 500
+  include_ext = ["go", "sql"]
+  exclude_dir = ["tmp", "bin", "migrations/.git"]
+  exclude_regex = ["_test\\.go"]
+  stop_on_error = true
+  kill_delay = "2s"
+  send_interrupt = true
+
+[misc]
+  clean_on_exit = true
