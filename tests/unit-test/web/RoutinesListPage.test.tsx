@@ -56,7 +56,9 @@ describe('RoutinesListPage', () => {
     renderPage()
     await screen.findByText(/no workout days yet/i)
 
-    await userEvent.type(screen.getByLabelText('New workout day'), 'Pull Day')
+    // The create form now lives in a modal/bottom-sheet — open it first.
+    await userEvent.click(screen.getByRole('button', { name: /new workout day/i }))
+    await userEvent.type(await screen.findByLabelText('Workout day name'), 'Pull Day')
     await userEvent.click(screen.getByRole('button', { name: /add workout day/i }))
 
     await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.url.includes('/api/v1/routines'))).toBe(true))

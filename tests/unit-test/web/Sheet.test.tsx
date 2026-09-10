@@ -1,0 +1,56 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
+import { Sheet } from '@/components/Sheet'
+
+// A tiny harness so we can drive the Sheet's controlled `open` prop from the UI.
+function Harness() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div>
+      <button type="button" onClick={() => setOpen(true)}>open</button>
+      <Sheet open={open} onClose={() => setOpen(false)} title="New workout day">
+        <input aria-label="Workout day name" />
+      </Sheet>
+    </div>
+  )
+}
+
+describe('Sheet', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('is not in the DOM until opened', () => {
+    render(<Harness />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('renders its content and moves focus inside when opened', async () => {
+    render(<Harness />)
+    await userEvent.click(screen.getByRole('button', { name: 'open' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'New workout day' })
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    const field = screen.getByLabelText('Workout day name')
+    await waitFor(() => expect(field).toHaveFocus())
+  })
+
+  it('closes when the scrim is clicked', async () => {
+    render(<Harness />)
+    await userEvent.click(screen.getByRole('button', { name: 'open' }))
+    await screen.findByRole('dialog')
+
+    // Two "Close" affordances (scrim + button); the scrim is first in the DOM.
+    await userEvent.click(screen.getAllByRole('button', { name: 'Close' })[0])
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('closes on Escape', async () => {
+    render(<Harness />)
+    await userEvent.click(screen.getByRole('button', { name: 'open' }))
+    await screen.findByRole('dialog')
+
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+})

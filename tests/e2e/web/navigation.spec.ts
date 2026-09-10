@@ -19,8 +19,9 @@ test('back chevron returns from routine detail to the workouts home', async ({ p
   // Home shows the personalized greeting.
   await expect(page.getByText(/welcome back, nav/i)).toBeVisible()
 
-  // Create and open a routine.
-  await page.getByLabel('New workout day').fill('Leg Day')
+  // Create and open a routine (the form opens in a modal/bottom-sheet).
+  await page.getByRole('button', { name: /new workout day/i }).click()
+  await page.getByLabel('Workout day name').fill('Leg Day')
   await page.getByRole('button', { name: /add workout day/i }).click()
   await page.getByText('Leg Day').click()
 
