@@ -21,7 +21,7 @@ test('register then land on authenticated home', async ({ page }) => {
   // Lands on the authenticated home with a welcome greeting and the account
   // avatar in the top-right nav bar.
   await expect(page.getByText(/welcome/i)).toBeVisible()
-  await expect(page.getByRole('button', { name: /account menu/i })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^profile$/i })).toBeVisible()
 })
 
 test('logging out returns to login', async ({ page }) => {
@@ -34,8 +34,9 @@ test('logging out returns to login', async ({ page }) => {
   await page.getByLabel('Password').fill('supersecret1')
   await page.getByRole('button', { name: /create account/i }).click()
 
-  // Logout now lives behind the top-right account menu (native pattern).
-  await page.getByRole('button', { name: /account menu/i }).click()
-  await page.getByRole('menuitem', { name: /logout/i }).click()
+  // Logout lives on the full Profile screen (native pattern) — the avatar in
+  // the nav bar navigates there instead of opening a dropdown.
+  await page.getByRole('button', { name: /^profile$/i }).click()
+  await page.getByRole('button', { name: /logout/i }).click()
   await expect(page.getByRole('button', { name: /^log in$/i })).toBeVisible()
 })
