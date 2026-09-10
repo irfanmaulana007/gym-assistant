@@ -15,11 +15,17 @@ Backend service for Gym Assistant. A **client-agnostic JSON API** built with
 ```bash
 cp .env.example .env            # fill in DATABASE_URL and JWT_SECRET
 make run                        # applies migrations, then serves on $PORT
+make dev                        # like run, but hot-reloads on change (air)
+make migrate                    # apply migrations only, then exit (idempotent)
 
 # health checks
 curl localhost:8080/healthz     # liveness
 curl localhost:8080/readyz      # readiness (pings the database)
 ```
+
+`make dev` and `make migrate` auto-load `.env` if present. `make dev` uses
+[air](https://github.com/air-verse/air) and installs it on first use if it is
+not already on your `PATH`.
 
 Tests live in the repo-root [`tests/`](../../tests) module (per
 `.claude/rules/testing.md`): unit tests under `tests/unit-test/api`, black-box
