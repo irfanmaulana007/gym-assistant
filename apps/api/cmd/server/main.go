@@ -48,7 +48,7 @@ func run(logger *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Port),
-		Handler:           app.New(pool, app.Config{JWTSecret: cfg.JWTSecret, AccessTokenTTL: cfg.AccessTokenTTL}),
+		Handler:           app.New(pool, app.Config{JWTSecret: cfg.JWTSecret, AccessTokenTTL: cfg.AccessTokenTTL, AllowedOrigins: cfg.AllowedOrigins}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

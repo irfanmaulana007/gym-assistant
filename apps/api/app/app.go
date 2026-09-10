@@ -26,6 +26,8 @@ import (
 type Config struct {
 	JWTSecret      string
 	AccessTokenTTL time.Duration
+	// AllowedOrigins are the browser origins permitted by CORS.
+	AllowedOrigins []string
 }
 
 // New builds the top-level HTTP handler wired to the given database pool.
@@ -34,7 +36,7 @@ type Config struct {
 // is provided.
 func New(pool *pgxpool.Pool, cfg Config) http.Handler {
 	var pinger handler.Pinger
-	deps := router.Deps{}
+	deps := router.Deps{AllowedOrigins: cfg.AllowedOrigins}
 
 	if pool != nil {
 		pinger = pool

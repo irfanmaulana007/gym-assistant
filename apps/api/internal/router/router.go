@@ -21,12 +21,17 @@ type Deps struct {
 	Exercise *handler.ExerciseHandler
 	Session  *handler.SessionHandler
 	Verifier middleware.TokenVerifier
+	// AllowedOrigins are the browser origins permitted by CORS.
+	AllowedOrigins []string
 }
 
 // New builds the top-level HTTP router.
 func New(deps Deps) http.Handler {
 	r := chi.NewRouter()
 
+	// CORS runs first so even 404/405 and preflight responses carry the headers
+	// browsers require.
+	r.Use(middleware.CORS(deps.AllowedOrigins))
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Recoverer)
