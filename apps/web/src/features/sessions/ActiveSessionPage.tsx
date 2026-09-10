@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { sessionsApi } from '@/api/sessions'
 import { Layout } from '@/components/Layout'
+import { Sheet } from '@/components/Sheet'
 import { Button, ErrorText, Field, Spinner } from '@/components/ui'
 import { useElapsed } from '@/hooks/useElapsed'
 import { formatDuration } from '@/lib/format'
@@ -22,10 +23,29 @@ export function ActiveSessionPage() {
 
   const [adHocName, setAdHocName] = useState('')
   const [error, setError] = useState('')
+  // Confirmation sheet shown on Stop so an accidental tap can't silently end the
+  // workout — the user picks Save (complete) or Discard (abandon) deliberately.
+  const [stopOpen, setStopOpen] = useState(false)
+  const [stopError, setStopError] = useState('')
 
   const pauseMut = useMutation({ mutationFn: () => sessionsApi.pause(id), onSuccess: invalidate })
   const resumeMut = useMutation({ mutationFn: () => sessionsApi.resume(id), onSuccess: invalidate })
-  const completeMut = useMutation({ mutationFn: () => sessionsApi.complete(id), onSuccess: invalidate })
+  const completeMut = useMutation({
+    mutationFn: () => sessionsApi.complete(id),
+    onSuccess: () => {
+      setStopOpen(false)
+      invalidate()
+    },
+    onError: () => setStopError('Could not save the workout. Try again.'),
+  })
+  const abandonMut = useMutation({
+    mutationFn: () => sessionsApi.abandon(id),
+    onSuccess: () => {
+      setStopOpen(false)
+      invalidate()
+    },
+    onError: () => setStopError('Could not discard the workout. Try again.'),
+  })
   const addMut = useMutation({
     mutationFn: (name: string) => sessionsApi.addExercise(id, { name, measurement_type: 'weight_reps', primary_muscle_group: 'other' }),
     onSuccess: () => {
@@ -83,9 +103,10 @@ export function ActiveSessionPage() {
           <Button
             size="sm"
             variant="danger"
-            disabled={completeMut.isPending}
+            disabled={completeMut.isPending || abandonMut.isPending}
             onClick={() => {
-              if (confirm('Finish this workout?')) completeMut.mutate()
+              setStopError('')
+              setStopOpen(true)
             }}
           >
             Stop
@@ -114,6 +135,45 @@ export function ActiveSessionPage() {
         </Button>
       </form>
       <ErrorText>{error}</ErrorText>
+
+      <Sheet open={stopOpen} onClose={() => setStopOpen(false)} title="Finish workout?">
+        <div className="stack">
+          <p className="muted">
+            Save this workout to keep it in your history, or discard it if you didn't mean to stop.
+          </p>
+          <Button
+            variant="primary"
+            block
+            disabled={completeMut.isPending || abandonMut.isPending}
+            onClick={() => {
+              setStopError('')
+              completeMut.mutate()
+            }}
+          >
+            {completeMut.isPending ? 'Saving…' : 'Save workout'}
+          </Button>
+          <Button
+            variant="danger"
+            block
+            disabled={completeMut.isPending || abandonMut.isPending}
+            onClick={() => {
+              setStopError('')
+              abandonMut.mutate()
+            }}
+          >
+            {abandonMut.isPending ? 'Discarding…' : 'Discard workout'}
+          </Button>
+          <Button
+            variant="ghost"
+            block
+            disabled={completeMut.isPending || abandonMut.isPending}
+            onClick={() => setStopOpen(false)}
+          >
+            Keep going
+          </Button>
+          <ErrorText>{stopError}</ErrorText>
+        </div>
+      </Sheet>
     </Layout>
   )
 }
