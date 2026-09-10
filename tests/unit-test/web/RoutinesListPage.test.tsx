@@ -38,6 +38,17 @@ describe('RoutinesListPage', () => {
     expect(await screen.findByText('Push Day')).toBeInTheDocument()
   })
 
+  it('does not render a delete control on list rows (delete moved to detail page)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(200, { routines: [{ id: '1', name: 'Push Day', notes: '', position: 0 }] })),
+    )
+    renderPage()
+    await screen.findByText('Push Day')
+    expect(screen.queryByRole('button', { name: /delete push day/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^delete$/i })).not.toBeInTheDocument()
+  })
+
   it('creates a routine and refreshes the list', async () => {
     const calls: { url: string; method: string }[] = []
     const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {

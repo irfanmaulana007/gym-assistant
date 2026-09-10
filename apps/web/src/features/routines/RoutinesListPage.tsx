@@ -37,11 +37,6 @@ export function RoutinesListPage() {
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not create'),
   })
 
-  const deleteMut = useMutation({
-    mutationFn: (id: string) => routinesApi.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['routines'] }),
-  })
-
   function onCreate(e: FormEvent) {
     e.preventDefault()
     setError('')
@@ -75,29 +70,17 @@ export function RoutinesListPage() {
           <ul className="list">
             {routines.map((r) => (
               <li key={r.id} className="list-item">
-                <div className="row-between">
-                  <Link
-                    to={`/routines/${r.id}`}
-                    className="row grow"
-                    style={{ color: 'inherit', minWidth: 0 }}
-                  >
-                    <div className="grow">
-                      <div className="row-title">{r.name}</div>
-                      {r.notes ? <div className="row-sub">{r.notes}</div> : null}
-                    </div>
-                    <ChevronRight className="chevron" />
-                  </Link>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    aria-label={`Delete ${r.name}`}
-                    onClick={() => {
-                      if (confirm(`Delete "${r.name}"? Past sessions are kept.`)) deleteMut.mutate(r.id)
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
+                <Link
+                  to={`/routines/${r.id}`}
+                  className="row"
+                  style={{ color: 'inherit', minWidth: 0 }}
+                >
+                  <div className="grow">
+                    <div className="row-title">{r.name}</div>
+                    {r.notes ? <div className="row-sub">{r.notes}</div> : null}
+                  </div>
+                  <ChevronRight className="chevron" />
+                </Link>
               </li>
             ))}
           </ul>
