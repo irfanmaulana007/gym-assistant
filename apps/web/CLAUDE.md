@@ -13,6 +13,15 @@ React + Vite + TypeScript frontend, **mobile-first**. Read with the root
 - **Feature-first structure.** Group code by feature under `src/features/*`
   (`auth`, `routines`, `exercises`, `sessions`, `progress`); shared UI in
   `src/components`, shared logic in `src/hooks` / `src/lib`.
+- **Forms live in a sheet.** Any form that creates or edits an entity is
+  presented through the shared [`Sheet`](src/components/Sheet.tsx) component —
+  a **centered modal on desktop, slide-up bottom sheet on mobile**, with the
+  animated show/hide it provides. Don't render entity forms as always-visible
+  inline cards. Trigger them from a `+` nav-bar action and/or an empty-state
+  button, and close the sheet on mutation success. Two deliberate exceptions,
+  each documented here so they don't look like oversights: **full-page auth
+  screens** (login/register) and the **in-session set-logging inputs**, which
+  stay inline to honor the fast-logging rule below.
 
 ## Data & state
 
