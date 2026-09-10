@@ -21,7 +21,8 @@ for the full document structure.
 |---|-------|--------|-----|
 | [0001](0001-workout-tracking-foundation.md) | Workout Tracking Foundation | Draft | api, web |
 | [0002](0002-session-lifecycle-and-metrics.md) | Session Lifecycle, Exercise Types & Metrics | Draft | api, web |
-| [0003](0003-detail-page-edit-delete.md) | Edit & Delete on Detail Pages | Approved | web |
+| [0003](0003-native-mobile-profile-screen.md) | Native-Mobile Profile Screen (Replace Header Dropdown) | Implemented | web |
+| [0004](0004-detail-page-edit-delete.md) | Edit & Delete on Detail Pages | Approved | web |
 
 ## Status values
 

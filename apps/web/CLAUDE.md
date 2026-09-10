@@ -8,6 +8,12 @@ React + Vite + TypeScript frontend, **mobile-first**. Read with the root
 - **Mobile-first, always.** Design for a phone browser at the gym: single column,
   large thumb-reachable targets, primary actions within reach, one-handed logging.
   Enhance for desktop after the mobile layout works.
+- **Native app feel, not a shrunk website.** The mobile view must look and behave
+  like a native iOS/Android app. Push full screens for navigation (top nav bar +
+  back chevron) and use native-style **sheets** for quick contextual actions —
+  **never desktop-style dropdown/popover menus** anchored to a header control.
+  Build from the tokens and primitives in `src/styles.css`. This is a repo rule:
+  [`.claude/rules/native-mobile-ux.md`](../../.claude/rules/native-mobile-ux.md).
 - **Fast logging.** Logging a set should take ≤ 3 interactions; show the previous
   session's numbers inline as the target to beat.
 - **Feature-first structure.** Group code by feature under `src/features/*`

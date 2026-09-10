@@ -8,12 +8,21 @@ export type SessionStatus = 'active' | 'paused' | 'completed' | 'abandoned'
 export type SessionExerciseStatus = 'pending' | 'in_progress' | 'completed' | 'skipped'
 export type SessionEventType = 'start' | 'pause' | 'resume' | 'complete' | 'abandon'
 
-export const MUSCLE_GROUPS = [
-  'chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms',
-  'quads', 'hamstrings', 'glutes', 'calves', 'core', 'full_body',
-  'cardio', 'other',
+// Muscle groups grouped by body area so selects can render them under
+// scannable <optgroup> sections. MUSCLE_GROUPS (the flat list) is derived from
+// this so the two never drift.
+export const MUSCLE_GROUP_SECTIONS = [
+  { label: 'Chest', groups: ['chest'] },
+  { label: 'Back', groups: ['back'] },
+  { label: 'Shoulders', groups: ['shoulders'] },
+  { label: 'Arms', groups: ['biceps', 'triceps', 'forearms'] },
+  { label: 'Legs', groups: ['quads', 'hamstrings', 'glutes', 'calves'] },
+  { label: 'Core', groups: ['core'] },
+  { label: 'Other', groups: ['full_body', 'cardio', 'other'] },
 ] as const
-export type MuscleGroup = (typeof MUSCLE_GROUPS)[number]
+
+export const MUSCLE_GROUPS = MUSCLE_GROUP_SECTIONS.flatMap((s) => s.groups)
+export type MuscleGroup = (typeof MUSCLE_GROUP_SECTIONS)[number]['groups'][number]
 
 export interface User {
   id: string
