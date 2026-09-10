@@ -24,6 +24,13 @@ export const MUSCLE_GROUP_SECTIONS = [
 export const MUSCLE_GROUPS = MUSCLE_GROUP_SECTIONS.flatMap((s) => s.groups)
 export type MuscleGroup = (typeof MUSCLE_GROUP_SECTIONS)[number]['groups'][number]
 
+// Human-readable label for a muscle group value: capitalize and drop the
+// snake_case underscores (e.g. `full_body` → `Full body`).
+export function muscleGroupLabel(group: string): string {
+  const spaced = group.replace(/_/g, ' ')
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
 export interface User {
   id: string
   email: string

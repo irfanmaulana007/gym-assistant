@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MUSCLE_GROUPS, MUSCLE_GROUP_SECTIONS } from '@/types/api'
+import { MUSCLE_GROUPS, MUSCLE_GROUP_SECTIONS, muscleGroupLabel } from '@/types/api'
 
 describe('MUSCLE_GROUP_SECTIONS', () => {
   it('groups muscle groups under body-area sections', () => {
@@ -25,5 +25,24 @@ describe('MUSCLE_GROUP_SECTIONS', () => {
       ]),
     )
     expect(MUSCLE_GROUPS).toHaveLength(14)
+  })
+})
+
+describe('muscleGroupLabel', () => {
+  it('capitalizes a single-word muscle group instead of showing raw lowercase', () => {
+    expect(muscleGroupLabel('chest')).toBe('Chest')
+    expect(muscleGroupLabel('biceps')).toBe('Biceps')
+  })
+
+  it('drops snake_case underscores and capitalizes the first word', () => {
+    expect(muscleGroupLabel('full_body')).toBe('Full body')
+  })
+
+  it('produces a human-readable label for every muscle group value', () => {
+    for (const g of MUSCLE_GROUPS) {
+      const label = muscleGroupLabel(g)
+      expect(label).not.toContain('_')
+      expect(label[0]).toBe(label[0].toUpperCase())
+    }
   })
 })
