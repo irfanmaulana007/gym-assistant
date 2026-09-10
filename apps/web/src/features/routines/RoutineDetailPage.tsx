@@ -4,8 +4,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { exercisesApi, routinesApi, type ExerciseInput } from '@/api/routines'
 import { sessionsApi } from '@/api/sessions'
 import { Layout } from '@/components/Layout'
+import { Sheet } from '@/components/Sheet'
 import { Button, ErrorText, Field, Spinner } from '@/components/ui'
-import { ChevronRight } from '@/components/icons'
+import { ChevronRight, PlusIcon } from '@/components/icons'
 import { MUSCLE_GROUPS, type MeasurementType } from '@/types/api'
 import { formatTarget } from '@/lib/format'
 import { ApiError } from '@/api/client'
@@ -15,6 +16,14 @@ const MEASUREMENT_LABELS: Record<MeasurementType, string> = {
   reps_only: 'Reps only',
   duration: 'Duration',
   distance: 'Distance',
+}
+
+const EMPTY_FORM: ExerciseInput = {
+  name: '',
+  measurement_type: 'weight_reps',
+  primary_muscle_group: 'chest',
+  target_sets: 4,
+  target_reps: 8,
 }
 
 export function RoutineDetailPage() {
@@ -27,14 +36,15 @@ export function RoutineDetailPage() {
     queryFn: () => routinesApi.get(id),
   })
 
-  const [form, setForm] = useState<ExerciseInput>({
-    name: '',
-    measurement_type: 'weight_reps',
-    primary_muscle_group: 'chest',
-    target_sets: 4,
-    target_reps: 8,
-  })
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [form, setForm] = useState<ExerciseInput>(EMPTY_FORM)
   const [error, setError] = useState('')
+
+  const openSheet = () => {
+    setForm(EMPTY_FORM)
+    setError('')
+    setSheetOpen(true)
+  }
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['routine', id] })
@@ -43,7 +53,8 @@ export function RoutineDetailPage() {
   const addMut = useMutation({
     mutationFn: (input: ExerciseInput) => exercisesApi.create(id, input),
     onSuccess: () => {
-      setForm({ name: '', measurement_type: 'weight_reps', primary_muscle_group: 'chest', target_sets: 4, target_reps: 8 })
+      setForm(EMPTY_FORM)
+      setSheetOpen(false)
       invalidate()
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not add exercise'),
@@ -83,8 +94,14 @@ export function RoutineDetailPage() {
   const isDuration = form.measurement_type === 'duration'
   const exercises = routine.exercises ?? []
 
+  const addAction = (
+    <button type="button" className="icon-btn" aria-label="Add exercise" onClick={openSheet}>
+      <PlusIcon />
+    </button>
+  )
+
   return (
-    <Layout title={routine.name} back="/" backLabel="Workouts">
+    <Layout title={routine.name} back="/" backLabel="Workouts" action={addAction}>
       {exercises.length > 0 ? (
         <>
           <div className="section-label">Exercises</div>
@@ -119,81 +136,85 @@ export function RoutineDetailPage() {
         <div className="empty">
           <span className="emoji">💪</span>
           No exercises yet.
-          <div className="small">Add your first one below.</div>
+          <div className="small" style={{ marginTop: 'var(--sp-4)' }}>
+            <Button variant="primary" onClick={openSheet}>Add your first exercise</Button>
+          </div>
         </div>
       )}
 
-      <div className="section-label">Add exercise</div>
-      <form className="card stack" onSubmit={onAdd}>
-        <Field
-          label="Name"
-          name="ex-name"
-          placeholder="Bench Press"
-          value={form.name}
-          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-        />
-        <div className="field">
-          <label htmlFor="ex-type">Type</label>
-          <select
-            id="ex-type"
-            className="select"
-            value={form.measurement_type}
-            onChange={(e) => setForm((f) => ({ ...f, measurement_type: e.target.value as MeasurementType }))}
-          >
-            {(Object.keys(MEASUREMENT_LABELS) as MeasurementType[]).map((mt) => (
-              <option key={mt} value={mt}>{MEASUREMENT_LABELS[mt]}</option>
-            ))}
-          </select>
-        </div>
-        {isDuration ? (
+      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Add exercise">
+        <form className="stack" onSubmit={onAdd}>
           <Field
-            label="Target minutes"
-            name="ex-minutes"
-            type="number"
-            min={1}
-            value={form.target_duration_seconds ? Math.round(form.target_duration_seconds / 60) : 30}
-            onChange={(e) => setForm((f) => ({ ...f, target_duration_seconds: Number(e.target.value) * 60 }))}
+            label="Name"
+            name="ex-name"
+            placeholder="Bench Press"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
           />
-        ) : (
-          <div className="row">
-            <Field
-              label="Sets"
-              name="ex-sets"
-              type="number"
-              min={1}
-              value={form.target_sets ?? 0}
-              onChange={(e) => setForm((f) => ({ ...f, target_sets: Number(e.target.value) }))}
-            />
-            <Field
-              label="Reps"
-              name="ex-reps"
-              type="number"
-              min={1}
-              value={form.target_reps ?? 0}
-              onChange={(e) => setForm((f) => ({ ...f, target_reps: Number(e.target.value) }))}
-            />
+          <div className="field">
+            <label htmlFor="ex-type">Type</label>
+            <select
+              id="ex-type"
+              className="select"
+              value={form.measurement_type}
+              onChange={(e) => setForm((f) => ({ ...f, measurement_type: e.target.value as MeasurementType }))}
+            >
+              {(Object.keys(MEASUREMENT_LABELS) as MeasurementType[]).map((mt) => (
+                <option key={mt} value={mt}>{MEASUREMENT_LABELS[mt]}</option>
+              ))}
+            </select>
           </div>
-        )}
-        <div className="field">
-          <label htmlFor="ex-muscle">Primary muscle group</label>
-          <select
-            id="ex-muscle"
-            className="select"
-            value={form.primary_muscle_group}
-            onChange={(e) => setForm((f) => ({ ...f, primary_muscle_group: e.target.value as ExerciseInput['primary_muscle_group'] }))}
-          >
-            {MUSCLE_GROUPS.map((g) => (
-              <option key={g} value={g}>{g}</option>
-            ))}
-          </select>
-        </div>
-        <ErrorText>{error}</ErrorText>
-        <Button type="submit" disabled={addMut.isPending}>
-          {addMut.isPending ? 'Adding…' : 'Add exercise'}
-        </Button>
-      </form>
+          {isDuration ? (
+            <Field
+              label="Target minutes"
+              name="ex-minutes"
+              type="number"
+              min={1}
+              value={form.target_duration_seconds ? Math.round(form.target_duration_seconds / 60) : 30}
+              onChange={(e) => setForm((f) => ({ ...f, target_duration_seconds: Number(e.target.value) * 60 }))}
+            />
+          ) : (
+            <div className="row">
+              <Field
+                label="Sets"
+                name="ex-sets"
+                type="number"
+                min={1}
+                value={form.target_sets ?? 0}
+                onChange={(e) => setForm((f) => ({ ...f, target_sets: Number(e.target.value) }))}
+              />
+              <Field
+                label="Reps"
+                name="ex-reps"
+                type="number"
+                min={1}
+                value={form.target_reps ?? 0}
+                onChange={(e) => setForm((f) => ({ ...f, target_reps: Number(e.target.value) }))}
+              />
+            </div>
+          )}
+          <div className="field">
+            <label htmlFor="ex-muscle">Primary muscle group</label>
+            <select
+              id="ex-muscle"
+              className="select"
+              value={form.primary_muscle_group}
+              onChange={(e) => setForm((f) => ({ ...f, primary_muscle_group: e.target.value as ExerciseInput['primary_muscle_group'] }))}
+            >
+              {MUSCLE_GROUPS.map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
+          </div>
+          <ErrorText>{error}</ErrorText>
+          <Button type="submit" variant="primary" block disabled={addMut.isPending}>
+            {addMut.isPending ? 'Adding…' : 'Save exercise'}
+          </Button>
+        </form>
+      </Sheet>
 
       <div className="bottom-cta">
+        {!sheetOpen && error ? <ErrorText>{error}</ErrorText> : null}
         <Button
           variant="primary"
           block
