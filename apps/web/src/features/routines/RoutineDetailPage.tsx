@@ -7,7 +7,7 @@ import { Layout } from '@/components/Layout'
 import { Sheet } from '@/components/Sheet'
 import { Button, ErrorText, Field, Spinner } from '@/components/ui'
 import { ChevronRight, PlusIcon } from '@/components/icons'
-import { MUSCLE_GROUP_SECTIONS, type MeasurementType } from '@/types/api'
+import { MUSCLE_GROUP_SECTIONS, muscleGroupLabel, type MeasurementType } from '@/types/api'
 import { formatTarget } from '@/lib/format'
 import { ApiError } from '@/api/client'
 
@@ -119,7 +119,7 @@ export function RoutineDetailPage() {
                       <div className="row-title">{ex.name}</div>
                       <div className="row-sub row wrap" style={{ gap: 'var(--sp-2)' }}>
                         <span>{formatTarget(ex.measurement_type, ex.target_sets, ex.target_reps, ex.target_duration_seconds)}</span>
-                        <span className="badge">{ex.primary_muscle_group}</span>
+                        <span className="badge">{muscleGroupLabel(ex.primary_muscle_group)}</span>
                       </div>
                     </div>
                     <ChevronRight className="chevron" />
@@ -204,7 +204,7 @@ export function RoutineDetailPage() {
               {MUSCLE_GROUP_SECTIONS.map((section) => (
                 <optgroup key={section.label} label={section.label}>
                   {section.groups.map((g) => (
-                    <option key={g} value={g}>{g}</option>
+                    <option key={g} value={g}>{muscleGroupLabel(g)}</option>
                   ))}
                 </optgroup>
               ))}
