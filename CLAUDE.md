@@ -47,6 +47,10 @@ rows, don't denormalize.
 - **Stay scoped to one app** — follow the conventions and tooling of the app you
   are touching; don't introduce cross-app patterns unless the change is genuinely
   cross-cutting.
+- **Native mobile UX for the web** — `apps/web` is mobile-first; its mobile view
+  must look and behave like a native mobile app, not a shrunk desktop site. No
+  desktop-style dropdown/popover menus — push a full screen or use a sheet. See
+  `.claude/rules/native-mobile-ux.md`.
 - **Run the app's checks** — after changes, run that app's `lint`, `typecheck`,
   and `build` before considering work done.
 - **Reproduce bugs first** — RED → fix root cause → GREEN → regression guard.
@@ -62,4 +66,4 @@ rows, don't denormalize.
 
 See the authoritative rules in [`.claude/rules/`](.claude/rules/):
 `prd-documents.md`, `git-workflow.md`, `development-best-practices.md`,
-`bug-fixing.md`, `testing.md`, `pr-labeling.md`.
+`bug-fixing.md`, `testing.md`, `pr-labeling.md`, `native-mobile-ux.md`.

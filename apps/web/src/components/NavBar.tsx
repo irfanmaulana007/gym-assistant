@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft } from './icons'
-import { ProfileMenu } from './ProfileMenu'
+import { ProfileButton } from './ProfileButton'
 
 export type BackTarget = string | number | boolean
 
@@ -43,7 +43,7 @@ export function NavBar({
       </div>
       <div className="navbar-right">
         {action}
-        {showProfile ? <ProfileMenu /> : null}
+        {showProfile ? <ProfileButton /> : null}
       </div>
     </header>
   )
