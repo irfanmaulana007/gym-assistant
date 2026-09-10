@@ -60,6 +60,37 @@ func (r *SessionRepository) ListSessionExercises(ctx context.Context, sessionID 
 	return out, rows.Err()
 }
 
+// LastSetsBeforeSession returns every weighted, rep-logged set for the exercises
+// performed in the given session, drawn from the user's *other* sessions (the
+// current session is excluded so an in-progress log never counts as its own
+// "weight to beat"). Ad-hoc exercises (no exercise_id) are excluded. The caller
+// reduces these to each exercise's most recent top set.
+func (r *SessionRepository) LastSetsBeforeSession(ctx context.Context, userID, sessionID string) ([]LastSetRow, error) {
+	const q = `
+		SELECT
+			sx.exercise_id,
+			s.id,
+			se.weight,
+			COALESCE(se.weight_unit, 'kg'),
+			se.reps,
+			COALESCE(s.started_at, s.performed_at, s.created_at) AS performed_at
+		FROM set_entries se
+		JOIN session_exercises sx ON sx.id = se.session_exercise_id
+		JOIN workout_sessions s ON s.id = sx.session_id
+		WHERE s.user_id = $1
+			AND s.id <> $2
+			AND se.weight IS NOT NULL AND se.reps IS NOT NULL
+			AND sx.exercise_id IN (
+				SELECT exercise_id FROM session_exercises
+				WHERE session_id = $2 AND exercise_id IS NOT NULL
+			)`
+	rows, err := r.pool.Query(ctx, q, userID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	return scanLastSetRows(rows)
+}
+
 // GetSessionExercise returns a checklist item owned by the user (via its
 // session) together with the parent session's status.
 func (r *SessionRepository) GetSessionExercise(ctx context.Context, userID, id string) (*domain.SessionExercise, string, error) {

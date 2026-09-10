@@ -35,4 +35,8 @@ type Exercise struct {
 	Position              int       `json:"position"`
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
+
+	// LastSet is populated on the routine-detail read: the heaviest set of the
+	// most recent session this exercise was performed in, or nil if never done.
+	LastSet *LastSet `json:"last_set,omitempty"`
 }

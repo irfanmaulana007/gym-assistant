@@ -252,6 +252,22 @@ func (s *SessionService) load(ctx context.Context, userID, id string) (*domain.W
 		}
 	}
 
+	// Attach each exercise's "weight to beat" from its most recent prior session.
+	lastRows, err := s.repo.LastSetsBeforeSession(ctx, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	lastByExercise := indexLastSets(lastRows)
+	for i := range exercises {
+		if exercises[i].ExerciseID == nil {
+			continue
+		}
+		if ls, ok := lastByExercise[*exercises[i].ExerciseID]; ok {
+			last := ls
+			exercises[i].LastSet = &last
+		}
+	}
+
 	session.Events = events
 	session.Exercises = exercises
 	return session, nil

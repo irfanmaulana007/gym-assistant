@@ -21,6 +21,12 @@ export function formatTarget(measurementType: string, sets?: number | null, reps
   return '—'
 }
 
+/** The previous session's top set as "60kg × 8", or null when there's none. */
+export function formatLastSet(last?: { weight: number; weight_unit: string; reps: number } | null): string | null {
+  if (!last) return null
+  return `${last.weight}${last.weight_unit} × ${last.reps}`
+}
+
 /** Short date like "Sep 2, 2026". */
 export function formatDate(iso: string): string {
   const d = new Date(iso)

@@ -6,25 +6,11 @@ import { sessionsApi } from '@/api/sessions'
 import { Layout } from '@/components/Layout'
 import { Sheet } from '@/components/Sheet'
 import { Button, ErrorText, Field, Spinner } from '@/components/ui'
-import { ChevronRight, PlusIcon } from '@/components/icons'
-import { MUSCLE_GROUP_SECTIONS, type MeasurementType } from '@/types/api'
-import { formatTarget } from '@/lib/format'
+import { ChevronRight, PencilIcon, PlusIcon } from '@/components/icons'
+import { EMPTY_EXERCISE_FORM, ExerciseFormFields, normalizeExerciseInput } from '@/features/exercises/ExerciseForm'
+import { muscleGroupLabel } from '@/types/api'
+import { formatLastSet, formatTarget } from '@/lib/format'
 import { ApiError } from '@/api/client'
-
-const MEASUREMENT_LABELS: Record<MeasurementType, string> = {
-  weight_reps: 'Weight × reps',
-  reps_only: 'Reps only',
-  duration: 'Duration',
-  distance: 'Distance',
-}
-
-const EMPTY_FORM: ExerciseInput = {
-  name: '',
-  measurement_type: 'weight_reps',
-  primary_muscle_group: 'chest',
-  target_sets: 4,
-  target_reps: 8,
-}
 
 export function RoutineDetailPage() {
   const { id = '' } = useParams()
@@ -37,13 +23,25 @@ export function RoutineDetailPage() {
   })
 
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [form, setForm] = useState<ExerciseInput>(EMPTY_FORM)
+  const [form, setForm] = useState<ExerciseInput>(EMPTY_EXERCISE_FORM)
   const [error, setError] = useState('')
 
+  const [editOpen, setEditOpen] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editNotes, setEditNotes] = useState('')
+  const [editError, setEditError] = useState('')
+
   const openSheet = () => {
-    setForm(EMPTY_FORM)
+    setForm(EMPTY_EXERCISE_FORM)
     setError('')
     setSheetOpen(true)
+  }
+
+  const openEdit = () => {
+    setEditName(routine?.name ?? '')
+    setEditNotes(routine?.notes ?? '')
+    setEditError('')
+    setEditOpen(true)
   }
 
   const invalidate = () => {
@@ -53,16 +51,30 @@ export function RoutineDetailPage() {
   const addMut = useMutation({
     mutationFn: (input: ExerciseInput) => exercisesApi.create(id, input),
     onSuccess: () => {
-      setForm(EMPTY_FORM)
+      setForm(EMPTY_EXERCISE_FORM)
       setSheetOpen(false)
       invalidate()
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not add exercise'),
   })
 
+  const updateMut = useMutation({
+    mutationFn: (patch: { name: string; notes: string }) => routinesApi.update(id, patch),
+    onSuccess: () => {
+      setEditOpen(false)
+      invalidate()
+      qc.invalidateQueries({ queryKey: ['routines'] })
+    },
+    onError: (e) => setEditError(e instanceof ApiError ? e.message : 'Could not save changes'),
+  })
+
   const deleteMut = useMutation({
-    mutationFn: (exId: string) => exercisesApi.remove(exId),
-    onSuccess: invalidate,
+    mutationFn: () => routinesApi.remove(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['routines'] })
+      navigate('/')
+    },
+    onError: (e) => setEditError(e instanceof ApiError ? e.message : 'Could not delete workout day'),
   })
 
   const startMut = useMutation({
@@ -78,56 +90,59 @@ export function RoutineDetailPage() {
       setError('Exercise name is required')
       return
     }
-    const isDuration = form.measurement_type === 'duration'
-    addMut.mutate({
-      ...form,
-      name: form.name.trim(),
-      target_sets: isDuration ? null : form.target_sets,
-      target_reps: isDuration ? null : form.target_reps,
-      target_duration_seconds: isDuration ? form.target_duration_seconds ?? 1800 : null,
-    })
+    addMut.mutate(normalizeExerciseInput(form))
+  }
+
+  function onSaveRoutine(e: FormEvent) {
+    e.preventDefault()
+    setEditError('')
+    if (!editName.trim()) {
+      setEditError('Workout day name is required')
+      return
+    }
+    updateMut.mutate({ name: editName.trim(), notes: editNotes.trim() })
   }
 
   if (isLoading) return <Layout title="Loading…" back="/"><Spinner /></Layout>
   if (isError || !routine) return <Layout title="Not found" back="/"><ErrorText>Routine not found.</ErrorText></Layout>
 
-  const isDuration = form.measurement_type === 'duration'
   const exercises = routine.exercises ?? []
 
-  const addAction = (
-    <button type="button" className="icon-btn" aria-label="Add exercise" onClick={openSheet}>
-      <PlusIcon />
-    </button>
+  const actions = (
+    <>
+      <button type="button" className="icon-btn" aria-label="Edit workout day" onClick={openEdit}>
+        <PencilIcon />
+      </button>
+      <button type="button" className="icon-btn" aria-label="Add exercise" onClick={openSheet}>
+        <PlusIcon />
+      </button>
+    </>
   )
 
   return (
-    <Layout title={routine.name} back="/" backLabel="Workouts" action={addAction}>
+    <Layout title={routine.name} back="/" backLabel="Workouts" action={actions}>
       {exercises.length > 0 ? (
         <>
           <div className="section-label">Exercises</div>
           <ul className="list">
             {exercises.map((ex) => (
               <li key={ex.id} className="list-item">
-                <div className="row-between">
-                  <Link
-                    to={`/exercises/${ex.id}/history`}
-                    className="row grow"
-                    style={{ color: 'inherit', minWidth: 0 }}
-                    aria-label={`${ex.name} history`}
-                  >
-                    <div className="grow">
-                      <div className="row-title">{ex.name}</div>
-                      <div className="row-sub row wrap" style={{ gap: 'var(--sp-2)' }}>
-                        <span>{formatTarget(ex.measurement_type, ex.target_sets, ex.target_reps, ex.target_duration_seconds)}</span>
-                        <span className="badge">{ex.primary_muscle_group}</span>
-                      </div>
+                <Link
+                  to={`/exercises/${ex.id}/history`}
+                  className="row"
+                  style={{ color: 'inherit', minWidth: 0 }}
+                  aria-label={`${ex.name} history`}
+                >
+                  <div className="grow">
+                    <div className="row-title">{ex.name}</div>
+                    <div className="row-sub row wrap" style={{ gap: 'var(--sp-2)' }}>
+                      <span>{formatTarget(ex.measurement_type, ex.target_sets, ex.target_reps, ex.target_duration_seconds)}</span>
+                      <span className="badge">{muscleGroupLabel(ex.primary_muscle_group)}</span>
+                      {ex.last_set ? <span className="muted">Last {formatLastSet(ex.last_set)}</span> : null}
                     </div>
-                    <ChevronRight className="chevron" />
-                  </Link>
-                  <Button size="sm" variant="danger" aria-label={`Delete ${ex.name}`} onClick={() => deleteMut.mutate(ex.id)}>
-                    ✕
-                  </Button>
-                </div>
+                  </div>
+                  <ChevronRight className="chevron" />
+                </Link>
               </li>
             ))}
           </ul>
@@ -144,72 +159,7 @@ export function RoutineDetailPage() {
 
       <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Add exercise">
         <form className="stack" onSubmit={onAdd}>
-          <Field
-            label="Name"
-            name="ex-name"
-            placeholder="Bench Press"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          />
-          <div className="field">
-            <label htmlFor="ex-type">Type</label>
-            <select
-              id="ex-type"
-              className="select"
-              value={form.measurement_type}
-              onChange={(e) => setForm((f) => ({ ...f, measurement_type: e.target.value as MeasurementType }))}
-            >
-              {(Object.keys(MEASUREMENT_LABELS) as MeasurementType[]).map((mt) => (
-                <option key={mt} value={mt}>{MEASUREMENT_LABELS[mt]}</option>
-              ))}
-            </select>
-          </div>
-          {isDuration ? (
-            <Field
-              label="Target minutes"
-              name="ex-minutes"
-              type="number"
-              min={1}
-              value={form.target_duration_seconds ? Math.round(form.target_duration_seconds / 60) : 30}
-              onChange={(e) => setForm((f) => ({ ...f, target_duration_seconds: Number(e.target.value) * 60 }))}
-            />
-          ) : (
-            <div className="row">
-              <Field
-                label="Sets"
-                name="ex-sets"
-                type="number"
-                min={1}
-                value={form.target_sets ?? 0}
-                onChange={(e) => setForm((f) => ({ ...f, target_sets: Number(e.target.value) }))}
-              />
-              <Field
-                label="Reps"
-                name="ex-reps"
-                type="number"
-                min={1}
-                value={form.target_reps ?? 0}
-                onChange={(e) => setForm((f) => ({ ...f, target_reps: Number(e.target.value) }))}
-              />
-            </div>
-          )}
-          <div className="field">
-            <label htmlFor="ex-muscle">Primary muscle group</label>
-            <select
-              id="ex-muscle"
-              className="select"
-              value={form.primary_muscle_group}
-              onChange={(e) => setForm((f) => ({ ...f, primary_muscle_group: e.target.value as ExerciseInput['primary_muscle_group'] }))}
-            >
-              {MUSCLE_GROUP_SECTIONS.map((section) => (
-                <optgroup key={section.label} label={section.label}>
-                  {section.groups.map((g) => (
-                    <option key={g} value={g}>{g}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
+          <ExerciseFormFields value={form} onChange={setForm} />
           <ErrorText>{error}</ErrorText>
           <Button type="submit" variant="primary" block disabled={addMut.isPending}>
             {addMut.isPending ? 'Adding…' : 'Save exercise'}
@@ -217,12 +167,46 @@ export function RoutineDetailPage() {
         </form>
       </Sheet>
 
+      <Sheet open={editOpen} onClose={() => setEditOpen(false)} title="Edit workout day">
+        <form className="stack" onSubmit={onSaveRoutine}>
+          <Field
+            label="Workout day name"
+            name="edit-routine-name"
+            placeholder="Push Day"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+          />
+          <Field
+            label="Notes"
+            name="edit-routine-notes"
+            placeholder="Optional"
+            value={editNotes}
+            onChange={(e) => setEditNotes(e.target.value)}
+          />
+          <ErrorText>{editError}</ErrorText>
+          <Button type="submit" variant="primary" block disabled={updateMut.isPending}>
+            {updateMut.isPending ? 'Saving…' : 'Save changes'}
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            block
+            disabled={deleteMut.isPending}
+            onClick={() => {
+              if (confirm(`Delete "${routine.name}"? Past sessions are kept.`)) deleteMut.mutate()
+            }}
+          >
+            {deleteMut.isPending ? 'Deleting…' : 'Delete workout day'}
+          </Button>
+        </form>
+      </Sheet>
+
       <div className="bottom-cta">
-        {!sheetOpen && error ? <ErrorText>{error}</ErrorText> : null}
+        {!sheetOpen && !editOpen && error ? <ErrorText>{error}</ErrorText> : null}
         <Button
           variant="primary"
           block
-          disabled={startMut.isPending || (routine.exercises?.length ?? 0) === 0}
+          disabled={startMut.isPending || exercises.length === 0}
           onClick={() => startMut.mutate()}
         >
           {startMut.isPending ? 'Starting…' : 'Start workout'}

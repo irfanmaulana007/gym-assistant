@@ -62,6 +62,11 @@ type SessionExercise struct {
 
 	// Populated on detail reads.
 	Entries []SetEntry `json:"entries,omitempty"`
+
+	// LastSet is populated on the session-detail read: the heaviest set of the
+	// most recent *prior* session this exercise was performed in (excluding the
+	// current session), or nil if it has no earlier weighted history.
+	LastSet *LastSet `json:"last_set,omitempty"`
 }
 
 // SetEntry is a generic performed unit — a strength set or a timed/distance bout

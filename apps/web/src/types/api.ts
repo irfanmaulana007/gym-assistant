@@ -24,6 +24,13 @@ export const MUSCLE_GROUP_SECTIONS = [
 export const MUSCLE_GROUPS = MUSCLE_GROUP_SECTIONS.flatMap((s) => s.groups)
 export type MuscleGroup = (typeof MUSCLE_GROUP_SECTIONS)[number]['groups'][number]
 
+// Human-readable label for a muscle group value: capitalize and drop the
+// snake_case underscores (e.g. `full_body` → `Full body`).
+export function muscleGroupLabel(group: string): string {
+  const spaced = group.replace(/_/g, ' ')
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
 export interface User {
   id: string
   email: string
@@ -35,6 +42,15 @@ export interface User {
 export interface AuthResponse {
   token: string
   user: User
+}
+
+/** The heaviest set of the most recent prior session — the "weight to beat".
+ * Derived server-side; null/absent when the exercise has no weighted history. */
+export interface LastSet {
+  weight: number
+  weight_unit: string
+  reps: number
+  performed_at: string
 }
 
 export interface Exercise {
@@ -55,6 +71,7 @@ export interface Exercise {
   position: number
   created_at: string
   updated_at: string
+  last_set?: LastSet | null
 }
 
 export interface Routine {
@@ -109,6 +126,7 @@ export interface SessionExercise {
   top_set_weight: number | null
   metadata: Record<string, unknown>
   entries?: SetEntry[]
+  last_set?: LastSet | null
 }
 
 export interface SessionEvent {

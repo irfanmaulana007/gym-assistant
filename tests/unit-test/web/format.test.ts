@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDuration, formatTarget, formatDate } from '@/lib/format'
+import { formatDuration, formatTarget, formatDate, formatLastSet } from '@/lib/format'
 
 describe('formatDuration', () => {
   it('formats under an hour as MM:SS', () => {
@@ -24,6 +24,17 @@ describe('formatTarget', () => {
   })
   it('falls back to a dash when nothing applies', () => {
     expect(formatTarget('weight_reps', null, null, null)).toBe('—')
+  })
+})
+
+describe('formatLastSet', () => {
+  it('formats the previous top set as weight × reps', () => {
+    expect(formatLastSet({ weight: 60, weight_unit: 'kg', reps: 8 })).toBe('60kg × 8')
+    expect(formatLastSet({ weight: 62.5, weight_unit: 'lb', reps: 10 })).toBe('62.5lb × 10')
+  })
+  it('returns null when there is no previous set', () => {
+    expect(formatLastSet(null)).toBeNull()
+    expect(formatLastSet(undefined)).toBeNull()
   })
 })
 

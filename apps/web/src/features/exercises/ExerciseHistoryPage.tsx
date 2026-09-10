@@ -1,9 +1,14 @@
-import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { exercisesApi } from '@/api/routines'
+import { useState, type FormEvent } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { exercisesApi, type ExerciseInput } from '@/api/routines'
 import { Layout } from '@/components/Layout'
-import { ErrorText, Spinner } from '@/components/ui'
+import { Sheet } from '@/components/Sheet'
+import { Button, ErrorText, Spinner } from '@/components/ui'
+import { PencilIcon } from '@/components/icons'
+import { EMPTY_EXERCISE_FORM, ExerciseFormFields, exerciseToInput, normalizeExerciseInput } from './ExerciseForm'
 import { formatDate } from '@/lib/format'
+import { ApiError } from '@/api/client'
 
 const TREND_LABEL: Record<string, string> = {
   up: '▲ Improving',
@@ -14,11 +19,62 @@ const TREND_LABEL: Record<string, string> = {
 
 export function ExerciseHistoryPage() {
   const { id = '' } = useParams()
+  const navigate = useNavigate()
+  const qc = useQueryClient()
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['exercise-history', id],
     queryFn: () => exercisesApi.history(id),
   })
+
+  const [editOpen, setEditOpen] = useState(false)
+  const [form, setForm] = useState<ExerciseInput>(EMPTY_EXERCISE_FORM)
+  const [error, setError] = useState('')
+
+  const routineId = data?.exercise.routine_id
+
+  const openEdit = () => {
+    if (data) setForm(exerciseToInput(data.exercise))
+    setError('')
+    setEditOpen(true)
+  }
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['exercise-history', id] })
+    if (routineId) qc.invalidateQueries({ queryKey: ['routine', routineId] })
+  }
+
+  const updateMut = useMutation({
+    mutationFn: (input: ExerciseInput) => exercisesApi.update(id, input),
+    onSuccess: () => {
+      setEditOpen(false)
+      invalidate()
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not save changes'),
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: () => exercisesApi.remove(id),
+    onSuccess: () => {
+      if (routineId) {
+        qc.invalidateQueries({ queryKey: ['routine', routineId] })
+        navigate(`/routines/${routineId}`)
+      } else {
+        navigate('/')
+      }
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not delete exercise'),
+  })
+
+  function onSave(e: FormEvent) {
+    e.preventDefault()
+    setError('')
+    if (!form.name.trim()) {
+      setError('Exercise name is required')
+      return
+    }
+    updateMut.mutate(normalizeExerciseInput(form))
+  }
 
   if (isLoading) return <Layout title="History" back={-1}><Spinner /></Layout>
   if (isError || !data) return <Layout title="History" back={-1}><ErrorText>Could not load history.</ErrorText></Layout>
@@ -26,8 +82,14 @@ export function ExerciseHistoryPage() {
   const { exercise, sessions, trend } = data
   const showChange = trend.direction === 'up' || trend.direction === 'down'
 
+  const editAction = (
+    <button type="button" className="icon-btn" aria-label="Edit exercise" onClick={openEdit}>
+      <PencilIcon />
+    </button>
+  )
+
   return (
-    <Layout title={exercise.name} back={-1}>
+    <Layout title={exercise.name} back={-1} action={editAction}>
       <div className="card row-between">
         <div>
           <div className="section-label" style={{ padding: 0 }}>Progression</div>
@@ -70,6 +132,27 @@ export function ExerciseHistoryPage() {
           </ul>
         </>
       )}
+
+      <Sheet open={editOpen} onClose={() => setEditOpen(false)} title="Edit exercise">
+        <form className="stack" onSubmit={onSave}>
+          <ExerciseFormFields value={form} onChange={setForm} />
+          <ErrorText>{error}</ErrorText>
+          <Button type="submit" variant="primary" block disabled={updateMut.isPending}>
+            {updateMut.isPending ? 'Saving…' : 'Save changes'}
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            block
+            disabled={deleteMut.isPending}
+            onClick={() => {
+              if (confirm(`Delete "${exercise.name}"? Past sessions are kept.`)) deleteMut.mutate()
+            }}
+          >
+            {deleteMut.isPending ? 'Deleting…' : 'Delete exercise'}
+          </Button>
+        </form>
+      </Sheet>
     </Layout>
   )
 }
