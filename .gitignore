@@ -8,6 +8,8 @@
 # Binaries
 apps/api/bin/
 apps/api/server
+# e2e test stack binary (built by apps/web's playwright.config.ts)
+tests/bin/
 # air hot-reload build dir (`make dev`)
 apps/api/tmp/
 *.exe

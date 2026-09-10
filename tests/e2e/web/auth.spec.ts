@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test'
 
-// E2E: the auth flow in a real browser (mobile viewport). Requires the API
-// running at VITE_API_BASE_URL and the Vite dev server (started by
-// playwright.config.ts webServer). Registers a unique user, then verifies the
-// authenticated home renders.
+// E2E: the auth flow in a real browser (mobile viewport). The API+DB and Vite
+// servers start automatically on dedicated test ports (playwright.config.ts
+// webServer) — never the local :8080/:5173. Registers a unique user, then
+// verifies the authenticated home renders.
 //
-// Run: (from apps/web) `npm run test:e2e` with the API up.
+// Run: (from apps/web) `npm run test:e2e`.
 
 test('register then land on authenticated home', async ({ page }) => {
   const unique = Date.now()
