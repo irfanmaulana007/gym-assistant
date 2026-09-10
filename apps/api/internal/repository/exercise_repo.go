@@ -253,6 +253,59 @@ func (r *ExerciseRepository) History(ctx context.Context, userID, exerciseID str
 	return out, rows.Err()
 }
 
+// LastSetRow is one weighted, rep-logged set of an exercise, tagged with the
+// session it belongs to and when that session happened. Callers derive the
+// "weight to beat" (most recent session's heaviest set) from these in Go — the
+// SQL only scopes and filters; the progression rule stays in pkg/overload.
+type LastSetRow struct {
+	ExerciseID  string
+	SessionID   string
+	Weight      float64
+	WeightUnit  string
+	Reps        int
+	PerformedAt time.Time
+}
+
+// scanLastSetRows reads LastSetRow results (candidate sets, unordered).
+func scanLastSetRows(rows pgx.Rows) ([]LastSetRow, error) {
+	defer rows.Close()
+	out := []LastSetRow{}
+	for rows.Next() {
+		var r LastSetRow
+		if err := rows.Scan(&r.ExerciseID, &r.SessionID, &r.Weight, &r.WeightUnit, &r.Reps, &r.PerformedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// LastSetsByRoutine returns every weighted, rep-logged set for the routine's
+// exercises across all of the user's sessions. Scoped to the user via the
+// session's user_id; exercises never performed with a weight are simply absent.
+// The caller reduces these to each exercise's most recent top set.
+func (r *ExerciseRepository) LastSetsByRoutine(ctx context.Context, userID, routineID string) ([]LastSetRow, error) {
+	const q = `
+		SELECT
+			sx.exercise_id,
+			s.id,
+			se.weight,
+			COALESCE(se.weight_unit, 'kg'),
+			se.reps,
+			COALESCE(s.started_at, s.performed_at, s.created_at) AS performed_at
+		FROM set_entries se
+		JOIN session_exercises sx ON sx.id = se.session_exercise_id
+		JOIN workout_sessions s ON s.id = sx.session_id
+		JOIN exercises e ON e.id = sx.exercise_id
+		WHERE e.routine_id = $1 AND s.user_id = $2
+			AND se.weight IS NOT NULL AND se.reps IS NOT NULL`
+	rows, err := r.pool.Query(ctx, q, routineID, userID)
+	if err != nil {
+		return nil, err
+	}
+	return scanLastSetRows(rows)
+}
+
 // Delete removes an exercise the user owns. Missing -> ErrNotFound.
 func (r *ExerciseRepository) Delete(ctx context.Context, userID, id string) error {
 	tag, err := r.pool.Exec(ctx, `
