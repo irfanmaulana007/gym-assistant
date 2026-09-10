@@ -48,7 +48,7 @@ test('create routine, add exercise, run a session, see summary', async ({ page }
   await expect(page.getByText(/total volume/i)).toBeVisible()
 })
 
-test('stop then discard abandons the session without saving a summary', async ({ page }) => {
+test('stop then discard abandons the session and redirects home', async ({ page }) => {
   const email = `discard_${Date.now()}@example.com`
 
   await page.goto('/register')
@@ -75,8 +75,11 @@ test('stop then discard abandons the session without saving a summary', async ({
   await page.getByRole('button', { name: /keep going/i }).click()
   await expect(page.getByText(/active workout/i)).toBeVisible()
 
-  // Stop → Discard abandons it and shows the summary (status: abandoned).
+  // Stop → Discard abandons it and sends the user home — a discarded workout
+  // has nothing to summarize, so it must NOT show the "Workout complete" screen.
   await page.getByRole('button', { name: /stop/i }).click()
   await page.getByRole('button', { name: /discard workout/i }).click()
-  await expect(page.getByText(/workout complete/i)).toBeVisible()
+  await expect(page.getByRole('button', { name: /new workout day/i })).toBeVisible()
+  await expect(page.getByText('Leg Day')).toBeVisible()
+  await expect(page.getByText(/workout complete/i)).toHaveCount(0)
 })
