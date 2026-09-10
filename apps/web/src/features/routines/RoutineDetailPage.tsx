@@ -9,7 +9,7 @@ import { Button, ErrorText, Field, Spinner } from '@/components/ui'
 import { ChevronRight, PencilIcon, PlusIcon } from '@/components/icons'
 import { EMPTY_EXERCISE_FORM, ExerciseFormFields, normalizeExerciseInput } from '@/features/exercises/ExerciseForm'
 import { muscleGroupLabel } from '@/types/api'
-import { formatTarget } from '@/lib/format'
+import { formatLastSet, formatTarget } from '@/lib/format'
 import { ApiError } from '@/api/client'
 
 export function RoutineDetailPage() {
@@ -138,6 +138,7 @@ export function RoutineDetailPage() {
                     <div className="row-sub row wrap" style={{ gap: 'var(--sp-2)' }}>
                       <span>{formatTarget(ex.measurement_type, ex.target_sets, ex.target_reps, ex.target_duration_seconds)}</span>
                       <span className="badge">{muscleGroupLabel(ex.primary_muscle_group)}</span>
+                      {ex.last_set ? <span className="muted">Last {formatLastSet(ex.last_set)}</span> : null}
                     </div>
                   </div>
                   <ChevronRight className="chevron" />

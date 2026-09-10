@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { sessionsApi, type EntryInput } from '@/api/sessions'
 import { Button } from '@/components/ui'
-import { formatDuration, formatTarget } from '@/lib/format'
+import { formatDuration, formatLastSet, formatTarget } from '@/lib/format'
 import { muscleGroupLabel, type SessionExercise } from '@/types/api'
 
 // One checklist row: shows target, a done toggle, logged entries, and inline
@@ -65,6 +65,9 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
             Target {formatTarget(sx.measurement_type, sx.target_sets, sx.target_reps, sx.target_duration_seconds)} ·{' '}
             <span className="badge">{muscleGroupLabel(sx.primary_muscle_group)}</span>
           </div>
+          {sx.last_set ? (
+            <div className="small muted">Last time {formatLastSet(sx.last_set)}</div>
+          ) : null}
         </div>
       </div>
 
@@ -103,7 +106,7 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
                 type="number"
                 min={0}
                 inputMode="decimal"
-                placeholder="kg"
+                placeholder={sx.last_set ? `${sx.last_set.weight}${sx.last_set.weight_unit}` : 'kg'}
                 aria-label={`${sx.name_snapshot} weight`}
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}

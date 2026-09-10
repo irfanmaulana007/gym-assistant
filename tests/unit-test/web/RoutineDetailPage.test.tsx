@@ -120,4 +120,39 @@ describe('RoutineDetailPage', () => {
     )
     expect(await screen.findByText('Workouts home')).toBeInTheDocument()
   })
+
+  it("shows the previous session's top set next to an exercise", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse(200, {
+          ...ROUTINE,
+          exercises: [
+            {
+              ...ROUTINE.exercises[0],
+              last_set: { weight: 62.5, weight_unit: 'kg', reps: 10, performed_at: '2026-01-08T00:00:00Z' },
+            },
+          ],
+        }),
+      ),
+    )
+    renderPage()
+    expect(await screen.findByText('Bench Press')).toBeInTheDocument()
+    expect(await screen.findByText(/Last 62\.5kg × 10/)).toBeInTheDocument()
+  })
+
+  it('omits the hint when an exercise has no history', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse(200, {
+          ...ROUTINE,
+          exercises: [{ ...ROUTINE.exercises[0], name: 'Overhead Press', last_set: null }],
+        }),
+      ),
+    )
+    renderPage()
+    expect(await screen.findByText('Overhead Press')).toBeInTheDocument()
+    expect(screen.queryByText(/Last /)).not.toBeInTheDocument()
+  })
 })
