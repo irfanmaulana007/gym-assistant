@@ -7,7 +7,7 @@ import { Layout } from '@/components/Layout'
 import { Sheet } from '@/components/Sheet'
 import { Button, ErrorText, Field, Spinner } from '@/components/ui'
 import { ChevronRight, PlusIcon } from '@/components/icons'
-import { MUSCLE_GROUPS, type MeasurementType } from '@/types/api'
+import { MUSCLE_GROUP_SECTIONS, type MeasurementType } from '@/types/api'
 import { formatTarget } from '@/lib/format'
 import { ApiError } from '@/api/client'
 
@@ -201,8 +201,12 @@ export function RoutineDetailPage() {
               value={form.primary_muscle_group}
               onChange={(e) => setForm((f) => ({ ...f, primary_muscle_group: e.target.value as ExerciseInput['primary_muscle_group'] }))}
             >
-              {MUSCLE_GROUPS.map((g) => (
-                <option key={g} value={g}>{g}</option>
+              {MUSCLE_GROUP_SECTIONS.map((section) => (
+                <optgroup key={section.label} label={section.label}>
+                  {section.groups.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
