@@ -22,6 +22,7 @@ type routineRepo interface {
 
 type routineExerciseLister interface {
 	ListByRoutine(ctx context.Context, routineID string) ([]domain.Exercise, error)
+	LastSetsByRoutine(ctx context.Context, userID, routineID string) ([]repository.LastSetRow, error)
 }
 
 // RoutineService implements routine CRUD + reorder, scoped to a user.
@@ -60,6 +61,17 @@ func (s *RoutineService) Get(ctx context.Context, userID, id string) (*domain.Ro
 	exercises, err := s.exercises.ListByRoutine(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	lastRows, err := s.exercises.LastSetsByRoutine(ctx, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	lastByExercise := indexLastSets(lastRows)
+	for i := range exercises {
+		if ls, ok := lastByExercise[exercises[i].ID]; ok {
+			last := ls
+			exercises[i].LastSet = &last
+		}
 	}
 	routine.Exercises = exercises
 	return routine, nil

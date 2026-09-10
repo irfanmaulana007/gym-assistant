@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/overload"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/vocab"
@@ -68,6 +69,57 @@ func TestTrendFromTopWeights(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLastTopSet(t *testing.T) {
+	day1 := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	day2 := time.Date(2026, 1, 8, 10, 0, 0, 0, time.UTC)
+
+	t.Run("no sets -> ok false", func(t *testing.T) {
+		if _, ok := overload.LastTopSet(nil); ok {
+			t.Error("LastTopSet(nil) should report ok=false")
+		}
+	})
+
+	t.Run("single set is returned", func(t *testing.T) {
+		got, ok := overload.LastTopSet([]overload.SessionSet{
+			{SessionID: "s1", PerformedAt: day1, Weight: 60, Reps: 8},
+		})
+		if !ok || got.Weight != 60 || got.Reps != 8 {
+			t.Errorf("LastTopSet = %+v ok=%v, want {60 8} true", got, ok)
+		}
+	})
+
+	t.Run("picks the most recent session, not the heaviest ever", func(t *testing.T) {
+		got, ok := overload.LastTopSet([]overload.SessionSet{
+			{SessionID: "s1", PerformedAt: day1, Weight: 100, Reps: 5}, // heavier, but older
+			{SessionID: "s2", PerformedAt: day2, Weight: 70, Reps: 8},  // most recent
+			{SessionID: "s2", PerformedAt: day2, Weight: 72.5, Reps: 6},
+		})
+		if !ok || got.Weight != 72.5 || got.Reps != 6 {
+			t.Errorf("LastTopSet = %+v, want {72.5 6} (latest session's top)", got)
+		}
+	})
+
+	t.Run("within the latest session, ties on weight break to more reps", func(t *testing.T) {
+		got, _ := overload.LastTopSet([]overload.SessionSet{
+			{SessionID: "s2", PerformedAt: day2, Weight: 60, Reps: 8},
+			{SessionID: "s2", PerformedAt: day2, Weight: 60, Reps: 10},
+		})
+		if got.Weight != 60 || got.Reps != 10 {
+			t.Errorf("LastTopSet = %+v, want {60 10}", got)
+		}
+	})
+
+	t.Run("equal timestamps break deterministically by session id", func(t *testing.T) {
+		got, _ := overload.LastTopSet([]overload.SessionSet{
+			{SessionID: "aaa", PerformedAt: day1, Weight: 50, Reps: 5},
+			{SessionID: "bbb", PerformedAt: day1, Weight: 55, Reps: 5},
+		})
+		if got.Weight != 55 { // session "bbb" > "aaa" wins
+			t.Errorf("LastTopSet = %+v, want session bbb's {55 5}", got)
+		}
+	})
 }
 
 func TestVocab(t *testing.T) {
