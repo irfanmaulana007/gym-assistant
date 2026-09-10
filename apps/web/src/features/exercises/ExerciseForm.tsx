@@ -1,6 +1,6 @@
 import type { ExerciseInput } from '@/api/routines'
 import { Field } from '@/components/ui'
-import { MUSCLE_GROUP_SECTIONS, type Exercise, type MeasurementType } from '@/types/api'
+import { MUSCLE_GROUP_SECTIONS, muscleGroupLabel, type Exercise, type MeasurementType } from '@/types/api'
 
 export const MEASUREMENT_LABELS: Record<MeasurementType, string> = {
   weight_reps: 'Weight × reps',
@@ -119,7 +119,7 @@ export function ExerciseFormFields({
           {MUSCLE_GROUP_SECTIONS.map((section) => (
             <optgroup key={section.label} label={section.label}>
               {section.groups.map((g) => (
-                <option key={g} value={g}>{g}</option>
+                <option key={g} value={g}>{muscleGroupLabel(g)}</option>
               ))}
             </optgroup>
           ))}

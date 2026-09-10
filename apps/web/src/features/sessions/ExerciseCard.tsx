@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { sessionsApi, type EntryInput } from '@/api/sessions'
 import { Button } from '@/components/ui'
 import { formatDuration, formatTarget } from '@/lib/format'
-import type { SessionExercise } from '@/types/api'
+import { muscleGroupLabel, type SessionExercise } from '@/types/api'
 
 // One checklist row: shows target, a done toggle, logged entries, and inline
 // inputs to log a weight set or a timed bout.
@@ -63,7 +63,7 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
           <strong style={{ textDecoration: done ? 'line-through' : 'none' }}>{sx.name_snapshot}</strong>
           <div className="small muted">
             Target {formatTarget(sx.measurement_type, sx.target_sets, sx.target_reps, sx.target_duration_seconds)} ·{' '}
-            <span className="badge">{sx.primary_muscle_group}</span>
+            <span className="badge">{muscleGroupLabel(sx.primary_muscle_group)}</span>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { formatDuration } from '@/lib/format'
-import type { WorkoutSession } from '@/types/api'
+import { muscleGroupLabel, type WorkoutSession } from '@/types/api'
 
 // Post-workout summary — the same shape a future dashboard card will use
 // (PRD 0002 §8).
@@ -51,7 +51,7 @@ export function SessionSummary({ session }: { session: WorkoutSession }) {
         <div className="row wrap">
           {session.muscle_groups.length > 0 ? (
             session.muscle_groups.map((g) => (
-              <span key={g} className="badge badge-active">{g}</span>
+              <span key={g} className="badge badge-active">{muscleGroupLabel(g)}</span>
             ))
           ) : (
             <span className="muted">—</span>
