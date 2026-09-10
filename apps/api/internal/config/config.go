@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -22,6 +23,9 @@ type Config struct {
 	JWTSecret string
 	// AccessTokenTTL is how long an issued access token stays valid.
 	AccessTokenTTL time.Duration
+	// AllowedOrigins are the browser origins permitted by CORS. Defaults to the
+	// local web dev origin so the web app works out of the box.
+	AllowedOrigins []string
 }
 
 // Load reads configuration from the environment and validates it.
@@ -48,6 +52,8 @@ func Load() (*Config, error) {
 	}
 	cfg.AccessTokenTTL = time.Duration(ttlMinutes) * time.Minute
 
+	cfg.AllowedOrigins = parseOrigins(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173"))
+
 	if cfg.DatabaseURL == "" {
 		problems = append(problems, "DATABASE_URL is required")
 	}
@@ -59,6 +65,17 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid configuration: %v", problems)
 	}
 	return cfg, nil
+}
+
+// parseOrigins splits a comma-separated origin list, trimming blanks.
+func parseOrigins(raw string) []string {
+	var origins []string
+	for _, o := range strings.Split(raw, ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			origins = append(origins, o)
+		}
+	}
+	return origins
 }
 
 func getEnv(key, fallback string) string {
