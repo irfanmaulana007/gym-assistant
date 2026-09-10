@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test'
 
 // E2E: the "Primary muscle group" select on the add-exercise form groups its
 // options under body-area <optgroup> sections (Chest, Back, …, Legs, Other) so a
-// group is easier to find. Requires the API running at VITE_API_BASE_URL and the
-// Vite dev server (started by the config).
+// group is easier to find. The API+DB and Vite servers start automatically on
+// dedicated test ports (see playwright.config.ts) — never the local :8080/:5173.
 
 test('primary muscle group select is grouped by body area', async ({ page }) => {
   const email = `muscle_${Date.now()}@example.com`

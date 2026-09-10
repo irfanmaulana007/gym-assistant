@@ -43,6 +43,25 @@ When a change genuinely cannot be end-to-end tested yet (e.g. a dependency the
 flow needs does not exist), say so explicitly in the PR description and add the
 e2e test in the PR that completes the flow — don't silently skip it.
 
+## Never occupy the local dev ports
+
+**Tests must spin up their own servers on dedicated/ephemeral ports — never the
+ports a developer uses locally (`:5173` web, `:8080` API, `:5432` Postgres).**
+A test run must not depend on, reuse, or write into a locally-running dev server
+or database. This keeps `npm run test`/`test:e2e` safe to run while the app is
+up in another terminal.
+
+- **Go unit + e2e (`apps/api`)** — already isolated: `httptest.NewServer` binds
+  an ephemeral port, and the e2e suite boots an embedded PostgreSQL on `:5433`
+  (`TestMain`). Nothing touches `:8080`/`:5432`.
+- **Web unit (`apps/web`, Vitest)** — jsdom, no server. Nothing to isolate.
+- **Web e2e (`apps/web`, Playwright)** — the config starts BOTH a dedicated Vite
+  server (`:4173`, `reuseExistingServer: false`) and a fully self-contained API
+  stack — the assembled API plus an ephemeral embedded PostgreSQL on `:5434`,
+  launched by [`tests/cmd/e2eserver`](../../tests/cmd/e2eserver) on `:8090`. The
+  browser talks to the test API via `VITE_API_BASE_URL`; ports are overridable
+  via `WEB_PORT` / `E2E_API_PORT`. The local `:5173`/`:8080` are never used.
+
 ## Verify before done
 
 - Both the new unit test(s) and e2e test(s) **pass** locally before opening a PR.

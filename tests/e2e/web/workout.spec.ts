@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test'
 
 // E2E happy path (PRD 0001/0002): register → create a routine → add an exercise
-// → start a session → log a set → complete → see the summary. Requires the API
-// running at VITE_API_BASE_URL and the Vite dev server (started by the config).
+// → start a session → log a set → complete → see the summary. The API+DB and
+// Vite servers start automatically on dedicated test ports (see the config) —
+// never the local :8080/:5173.
 //
-// Run: (from apps/web) `npm run test:e2e` with the API up.
+// Run: (from apps/web) `npm run test:e2e`.
 
 test('create routine, add exercise, run a session, see summary', async ({ page }) => {
   const email = `flow_${Date.now()}@example.com`

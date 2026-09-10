@@ -3,8 +3,8 @@ import { test, expect } from '@playwright/test'
 // E2E: native navigation chrome — the top-bar back chevron returns to the
 // previous screen, and the avatar pushes a full Profile screen (no dropdown)
 // that exposes the signed-in identity and the logout action.
-// Requires the API running at VITE_API_BASE_URL and the Vite dev server
-// (started by playwright.config.ts webServer).
+// The API+DB and Vite servers are started automatically on dedicated test
+// ports by playwright.config.ts webServer (never the local :8080/:5173).
 //
 // Run: (from apps/web) `npm run test:e2e` with the API up.
 
