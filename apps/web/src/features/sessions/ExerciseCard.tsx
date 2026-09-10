@@ -69,11 +69,11 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
       </div>
 
       {sx.entries && sx.entries.length > 0 ? (
-        <ul className="stack small" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        <ul className="stack" style={{ listStyle: 'none', margin: 0, padding: 0, gap: 'var(--sp-1)' }}>
           {sx.entries.map((e) => (
-            <li key={e.id} className="row-between">
-              <span className="muted">Set {e.entry_number}</span>
-              <span>
+            <li key={e.id} className="entry-row">
+              <span className="idx">Set {e.entry_number}</span>
+              <span className="val">
                 {e.duration_seconds != null
                   ? formatDuration(e.duration_seconds)
                   : `${e.weight ?? '—'}${e.weight_unit ?? ''} × ${e.reps ?? '—'}`}
