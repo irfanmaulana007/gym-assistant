@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { sessionsApi } from '@/api/sessions'
 import { Layout } from '@/components/Layout'
@@ -12,6 +12,7 @@ import { SessionSummary } from './SessionSummary'
 
 export function ActiveSessionPage() {
   const { id = '' } = useParams()
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const invalidate = () => qc.invalidateQueries({ queryKey: ['session', id] })
 
@@ -41,8 +42,11 @@ export function ActiveSessionPage() {
   const abandonMut = useMutation({
     mutationFn: () => sessionsApi.abandon(id),
     onSuccess: () => {
+      // A discarded workout has nothing to summarize — send the user home
+      // rather than the "Workout complete" screen the completed status shows.
       setStopOpen(false)
       invalidate()
+      navigate('/', { replace: true })
     },
     onError: () => setStopError('Could not discard the workout. Try again.'),
   })
@@ -61,9 +65,13 @@ export function ActiveSessionPage() {
   if (isLoading) return <Layout title="Loading…"><Spinner /></Layout>
   if (isError || !session) return <Layout title="Session"><ErrorText>Session not found.</ErrorText></Layout>
 
-  const finished = session.status === 'completed' || session.status === 'abandoned'
+  // An abandoned session (discarded here, or opened directly by URL) is never
+  // shown as a completed workout — it redirects home.
+  if (session.status === 'abandoned') {
+    return <Navigate to="/" replace />
+  }
 
-  if (finished) {
+  if (session.status === 'completed') {
     return (
       <Layout title="Workout complete" back="/" backLabel="Home">
         <SessionSummary session={session} />

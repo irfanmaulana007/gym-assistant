@@ -39,6 +39,7 @@ function renderPage(fetchMock: typeof fetch) {
       <MemoryRouter initialEntries={[`/sessions/${SESSION_ID}`]}>
         <AuthProvider>
           <Routes>
+            <Route path="/" element={<div>Home screen</div>} />
             <Route path="/sessions/:id" element={<ActiveSessionPage />} />
           </Routes>
         </AuthProvider>
@@ -109,6 +110,53 @@ describe('ActiveSessionPage — Stop confirmation sheet', () => {
       ).toBe(true),
     )
     expect(calls.some((c) => c.url.includes('/complete'))).toBe(false)
+  })
+
+  it('Discard redirects home instead of showing the Workout complete screen', async () => {
+    // Regression: an abandoned session used to fall into the same `finished`
+    // branch as a completed one, so discarding rendered the "Workout complete"
+    // summary. Discard must send the user home.
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url)
+      const method = init?.method ?? 'GET'
+      if (method === 'POST' && u.includes('/abandon')) return jsonResponse(200, activeSession('abandoned'))
+      return jsonResponse(200, activeSession('active'))
+    }) as unknown as typeof fetch
+    renderPage(fetchMock)
+
+    await userEvent.click(await screen.findByRole('button', { name: /stop/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /discard workout/i }))
+
+    expect(await screen.findByText('Home screen')).toBeInTheDocument()
+    expect(screen.queryByText(/workout complete/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/nice work/i)).not.toBeInTheDocument()
+  })
+
+  it('Save shows the Workout complete summary (completed still summarizes)', async () => {
+    let completed = false
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url)
+      const method = init?.method ?? 'GET'
+      if (method === 'POST' && u.includes('/complete')) {
+        completed = true
+        return jsonResponse(200, activeSession('completed'))
+      }
+      return jsonResponse(200, activeSession(completed ? 'completed' : 'active'))
+    }) as unknown as typeof fetch
+    renderPage(fetchMock)
+
+    await userEvent.click(await screen.findByRole('button', { name: /stop/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /save workout/i }))
+
+    expect(await screen.findByText(/nice work/i)).toBeInTheDocument()
+    expect(screen.queryByText('Home screen')).not.toBeInTheDocument()
+  })
+
+  it('Opening an already-abandoned session by URL redirects home', async () => {
+    renderPage(vi.fn(async () => jsonResponse(200, activeSession('abandoned'))) as unknown as typeof fetch)
+
+    expect(await screen.findByText('Home screen')).toBeInTheDocument()
+    expect(screen.queryByText(/nice work/i)).not.toBeInTheDocument()
   })
 
   it('Keep going closes the sheet without calling either endpoint', async () => {
