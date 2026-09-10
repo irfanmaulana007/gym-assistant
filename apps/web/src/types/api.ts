@@ -44,6 +44,15 @@ export interface AuthResponse {
   user: User
 }
 
+/** The heaviest set of the most recent prior session — the "weight to beat".
+ * Derived server-side; null/absent when the exercise has no weighted history. */
+export interface LastSet {
+  weight: number
+  weight_unit: string
+  reps: number
+  performed_at: string
+}
+
 export interface Exercise {
   id: string
   routine_id: string
@@ -62,6 +71,7 @@ export interface Exercise {
   position: number
   created_at: string
   updated_at: string
+  last_set?: LastSet | null
 }
 
 export interface Routine {
@@ -116,6 +126,7 @@ export interface SessionExercise {
   top_set_weight: number | null
   metadata: Record<string, unknown>
   entries?: SetEntry[]
+  last_set?: LastSet | null
 }
 
 export interface SessionEvent {
