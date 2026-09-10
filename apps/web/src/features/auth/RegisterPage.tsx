@@ -41,7 +41,11 @@ export function RegisterPage() {
   return (
     <div className="app-shell">
       <main className="app-main">
-        <h1 className="center">Create account</h1>
+        <div className="auth-hero">
+          <div className="auth-mark">🏋️</div>
+          <h1>Create account</h1>
+          <p>Start tracking your progressive overload.</p>
+        </div>
         <form className="card stack" onSubmit={onSubmit}>
           <Field
             label="Display name"

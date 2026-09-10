@@ -5,6 +5,7 @@ import { exercisesApi, routinesApi, type ExerciseInput } from '@/api/routines'
 import { sessionsApi } from '@/api/sessions'
 import { Layout } from '@/components/Layout'
 import { Button, ErrorText, Field, Spinner } from '@/components/ui'
+import { ChevronRight } from '@/components/icons'
 import { MUSCLE_GROUPS, type MeasurementType } from '@/types/api'
 import { formatTarget } from '@/lib/format'
 import { ApiError } from '@/api/client'
@@ -76,40 +77,54 @@ export function RoutineDetailPage() {
     })
   }
 
-  if (isLoading) return <Layout title="Loading…"><Spinner /></Layout>
-  if (isError || !routine) return <Layout title="Not found"><ErrorText>Routine not found.</ErrorText></Layout>
+  if (isLoading) return <Layout title="Loading…" back="/"><Spinner /></Layout>
+  if (isError || !routine) return <Layout title="Not found" back="/"><ErrorText>Routine not found.</ErrorText></Layout>
 
   const isDuration = form.measurement_type === 'duration'
+  const exercises = routine.exercises ?? []
 
   return (
-    <Layout title={routine.name} action={<Link to="/" className="btn btn-ghost btn-sm">Back</Link>}>
-      <ul className="list">
-        {routine.exercises?.map((ex) => (
-          <li key={ex.id} className="list-item">
-            <div className="row-between">
-              <div className="grow">
-                <strong>{ex.name}</strong>
-                <div className="small muted">
-                  {formatTarget(ex.measurement_type, ex.target_sets, ex.target_reps, ex.target_duration_seconds)} ·{' '}
-                  <span className="badge">{ex.primary_muscle_group}</span>
+    <Layout title={routine.name} back="/" backLabel="Workouts">
+      {exercises.length > 0 ? (
+        <>
+          <div className="section-label">Exercises</div>
+          <ul className="list">
+            {exercises.map((ex) => (
+              <li key={ex.id} className="list-item">
+                <div className="row-between">
+                  <Link
+                    to={`/exercises/${ex.id}/history`}
+                    className="row grow"
+                    style={{ color: 'inherit', minWidth: 0 }}
+                    aria-label={`${ex.name} history`}
+                  >
+                    <div className="grow">
+                      <div className="row-title">{ex.name}</div>
+                      <div className="row-sub row wrap" style={{ gap: 'var(--sp-2)' }}>
+                        <span>{formatTarget(ex.measurement_type, ex.target_sets, ex.target_reps, ex.target_duration_seconds)}</span>
+                        <span className="badge">{ex.primary_muscle_group}</span>
+                      </div>
+                    </div>
+                    <ChevronRight className="chevron" />
+                  </Link>
+                  <Button size="sm" variant="danger" aria-label={`Delete ${ex.name}`} onClick={() => deleteMut.mutate(ex.id)}>
+                    ✕
+                  </Button>
                 </div>
-              </div>
-              <div className="row">
-                <Link to={`/exercises/${ex.id}/history`} className="btn btn-ghost btn-sm">History</Link>
-                <Button size="sm" variant="danger" aria-label={`Delete ${ex.name}`} onClick={() => deleteMut.mutate(ex.id)}>
-                  ✕
-                </Button>
-              </div>
-            </div>
-          </li>
-        ))}
-        {routine.exercises && routine.exercises.length === 0 ? (
-          <p className="muted center">No exercises yet — add one below.</p>
-        ) : null}
-      </ul>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <div className="empty">
+          <span className="emoji">💪</span>
+          No exercises yet.
+          <div className="small">Add your first one below.</div>
+        </div>
+      )}
 
+      <div className="section-label">Add exercise</div>
       <form className="card stack" onSubmit={onAdd}>
-        <strong>Add exercise</strong>
         <Field
           label="Name"
           name="ex-name"
@@ -121,7 +136,7 @@ export function RoutineDetailPage() {
           <label htmlFor="ex-type">Type</label>
           <select
             id="ex-type"
-            className="input"
+            className="select"
             value={form.measurement_type}
             onChange={(e) => setForm((f) => ({ ...f, measurement_type: e.target.value as MeasurementType }))}
           >
@@ -163,7 +178,7 @@ export function RoutineDetailPage() {
           <label htmlFor="ex-muscle">Primary muscle group</label>
           <select
             id="ex-muscle"
-            className="input"
+            className="select"
             value={form.primary_muscle_group}
             onChange={(e) => setForm((f) => ({ ...f, primary_muscle_group: e.target.value as ExerciseInput['primary_muscle_group'] }))}
           >

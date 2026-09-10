@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { sessionsApi } from '@/api/sessions'
 import { Layout } from '@/components/Layout'
@@ -45,7 +45,7 @@ export function ActiveSessionPage() {
 
   if (finished) {
     return (
-      <Layout title="Workout complete" action={<Link to="/" className="btn btn-ghost btn-sm">Home</Link>}>
+      <Layout title="Workout complete" back="/" backLabel="Home">
         <SessionSummary session={session} />
       </Layout>
     )
@@ -62,10 +62,13 @@ export function ActiveSessionPage() {
 
   return (
     <Layout title="Active workout">
-      <div className="card row-between" style={{ position: 'sticky', top: 'var(--header-h)', zIndex: 5 }}>
-        <div>
-          <div className="small muted">{paused ? 'Paused' : 'Elapsed'}</div>
-          <div className="timer">{formatDuration(elapsed)}</div>
+      <div className="session-bar row-between">
+        <div className="row">
+          <span className={`pulse-dot ${paused ? 'paused' : ''}`} />
+          <div>
+            <div className="small muted">{paused ? 'Paused' : 'Elapsed'}</div>
+            <div className="timer">{formatDuration(elapsed)}</div>
+          </div>
         </div>
         <div className="row">
           {paused ? (

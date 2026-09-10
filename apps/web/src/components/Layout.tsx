@@ -1,24 +1,32 @@
 import type { ReactNode } from 'react'
-import { useAuth } from '@/lib/auth'
-import { Button } from './ui'
+import { NavBar, type BackTarget } from './NavBar'
 
-// App shell: sticky header with title + logout, single-column main area.
-export function Layout({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
-  const { user, logout } = useAuth()
+// App shell: native top nav bar + single-column main area. `intro` renders an
+// optional large-title/greeting block above the page content.
+export function Layout({
+  title,
+  children,
+  action,
+  back,
+  backLabel,
+  intro,
+  showProfile,
+}: {
+  title: string
+  children: ReactNode
+  action?: ReactNode
+  back?: BackTarget
+  backLabel?: string
+  intro?: ReactNode
+  showProfile?: boolean
+}) {
   return (
     <div className="app-shell">
-      <header className="app-header">
-        <h1>{title}</h1>
-        <div className="row">
-          {action}
-          {user ? (
-            <Button size="sm" variant="ghost" onClick={logout} aria-label="Log out">
-              Logout
-            </Button>
-          ) : null}
-        </div>
-      </header>
-      <main className="app-main">{children}</main>
+      <NavBar title={title} back={back} backLabel={backLabel} action={action} showProfile={showProfile} />
+      <main className="app-main">
+        {intro}
+        {children}
+      </main>
     </div>
   )
 }

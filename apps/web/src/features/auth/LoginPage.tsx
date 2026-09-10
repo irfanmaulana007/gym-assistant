@@ -29,8 +29,11 @@ export function LoginPage() {
   return (
     <div className="app-shell">
       <main className="app-main">
-        <h1 className="center">Gym Assistant</h1>
-        <p className="muted center">Log in to track your lifts.</p>
+        <div className="auth-hero">
+          <div className="auth-mark">🏋️</div>
+          <h1>Gym Assistant</h1>
+          <p>Log in to track your lifts.</p>
+        </div>
         <form className="card stack" onSubmit={onSubmit}>
           <Field
             label="Email"
