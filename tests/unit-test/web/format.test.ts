@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { formatDuration, formatTarget, formatDate, formatLastSet } from '@/lib/format'
+import { describeTarget, formatDuration, formatTarget, formatDate, formatLastSet } from '@/lib/format'
+import type { Exercise } from '@/types/api'
+
+// Minimal Exercise builder — describeTarget only reads the target/measurement fields.
+function ex(partial: Partial<Exercise>): Exercise {
+  return {
+    id: 'e', routine_id: 'r', name: 'X', measurement_type: 'weight_reps',
+    target_sets: null, target_reps: null, target_weight: null,
+    target_duration_seconds: null, target_distance: null, distance_unit: null,
+    primary_muscle_group: 'chest', secondary_muscle_groups: [], default_metadata: {},
+    notes: '', position: 0, created_at: '', updated_at: '', catalog_exercise_id: null,
+    ...partial,
+  }
+}
 
 describe('formatDuration', () => {
   it('formats under an hour as MM:SS', () => {
@@ -24,6 +37,28 @@ describe('formatTarget', () => {
   })
   it('falls back to a dash when nothing applies', () => {
     expect(formatTarget('weight_reps', null, null, null)).toBe('—')
+  })
+})
+
+describe('describeTarget', () => {
+  it('shows sets×reps with the target weight for strength', () => {
+    expect(describeTarget(ex({ measurement_type: 'weight_reps', target_sets: 3, target_reps: 12, target_weight: 40 }))).toBe('3×12 @ 40kg')
+  })
+  it('shows sets×reps without weight when no target weight is set', () => {
+    expect(describeTarget(ex({ measurement_type: 'weight_reps', target_sets: 4, target_reps: 8 }))).toBe('4×8')
+  })
+  it('shows reps for reps-only work', () => {
+    expect(describeTarget(ex({ measurement_type: 'reps_only', target_reps: 15 }))).toBe('15 reps')
+  })
+  it('shows a duration for timed work', () => {
+    expect(describeTarget(ex({ measurement_type: 'duration', target_duration_seconds: 1800 }))).toBe('30:00')
+  })
+  it('shows distance with its unit', () => {
+    expect(describeTarget(ex({ measurement_type: 'distance', target_distance: 5, distance_unit: 'km' }))).toBe('5km')
+  })
+  it('falls back to a dash when nothing applies', () => {
+    expect(describeTarget(ex({ measurement_type: 'weight_reps' }))).toBe('—')
+    expect(describeTarget(ex({ measurement_type: 'distance' }))).toBe('—')
   })
 })
 

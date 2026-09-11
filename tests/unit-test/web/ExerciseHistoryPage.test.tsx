@@ -34,6 +34,26 @@ const HISTORY = {
   trend: { metric: 'weight', direction: 'none', change: 0 },
 }
 
+const HISTORY_DETAIL = {
+  exercise: {
+    ...HISTORY.exercise,
+    target_weight: 40,
+    secondary_muscle_groups: ['triceps'],
+    catalog_exercise_id: 'cat-1',
+    catalog_name: 'Barbell Bench Press',
+  },
+  sessions: [
+    {
+      session_id: 's1',
+      performed_at: '2026-09-02T09:00:00Z',
+      top_set: { weight: 42.5, weight_unit: 'kg', reps: 8 },
+      total_volume: 1020,
+      sets: [{ set_number: 1, weight: 42.5, reps: 8 }],
+    },
+  ],
+  trend: { metric: 'weight', direction: 'up', change: 5 },
+}
+
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -54,6 +74,33 @@ describe('ExerciseHistoryPage', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     localStorage.clear()
+  })
+
+  it('defaults to the Info tab (muscles, target, source) and switches to Progress/History', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse(200, HISTORY_DETAIL))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    await screen.findAllByText('Bench Press')
+
+    // Info tab is shown by default: muscle groups, measurement, target, source.
+    expect(screen.getByText('Chest')).toBeInTheDocument()
+    expect(screen.getByText('Triceps')).toBeInTheDocument()
+    expect(screen.getByText('Weight × reps')).toBeInTheDocument()
+    expect(screen.getByText('4×8 @ 40kg')).toBeInTheDocument()
+    expect(screen.getByText('Catalog: Barbell Bench Press')).toBeInTheDocument()
+    // The logged session (History) is not visible until that tab is selected.
+    expect(screen.queryByText(/Volume/)).not.toBeInTheDocument()
+
+    // Progress tab shows the progression trend.
+    await userEvent.click(screen.getByRole('tab', { name: 'Progress' }))
+    expect(screen.getByText(/Improving/)).toBeInTheDocument()
+    expect(screen.getByText(/\+5 kg/)).toBeInTheDocument()
+
+    // History tab shows the logged session's top set.
+    await userEvent.click(screen.getByRole('tab', { name: 'History' }))
+    expect(screen.getByText(/42\.5/)).toBeInTheDocument()
+    expect(screen.getByText(/Volume 1,020/)).toBeInTheDocument()
   })
 
   it('edits the exercise with values pre-filled from the current exercise (PATCH round-trip)', async () => {
