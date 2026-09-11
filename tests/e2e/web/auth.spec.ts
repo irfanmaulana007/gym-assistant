@@ -18,9 +18,11 @@ test('register then land on authenticated home', async ({ page }) => {
   await page.getByLabel('Password').fill('supersecret1')
   await page.getByRole('button', { name: /create account/i }).click()
 
-  // Lands on the authenticated home with a welcome greeting and the Profile
-  // tab in the bottom navigation bar (the header carries no account button).
-  await expect(page.getByText(/welcome/i)).toBeVisible()
+  // Lands on the authenticated home — the Progress tab at `/` (PRD 0007) — with
+  // the bottom navigation bar (Profile tab present; header carries no account
+  // button).
+  await expect(page).toHaveURL(/\/$/)
+  await expect(page.getByRole('heading', { name: 'Progress' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Profile' })).toBeVisible()
 })
 

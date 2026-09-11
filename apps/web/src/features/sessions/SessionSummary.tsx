@@ -74,7 +74,7 @@ export function SessionSummary({ session }: { session: WorkoutSession }) {
         </ul>
       </div>
 
-      <Link to="/" className="btn btn-primary btn-block">Done</Link>
+      <Link to="/workout" className="btn btn-primary btn-block">Done</Link>
     </div>
   )
 }

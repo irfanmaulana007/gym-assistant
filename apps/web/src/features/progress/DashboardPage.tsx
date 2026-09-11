@@ -5,7 +5,7 @@ import { Segmented } from '@/components/Segmented'
 import { ErrorText, Spinner } from '@/components/ui'
 import { ChevronRight } from '@/components/icons'
 import { useDashboard } from '@/hooks/useDashboard'
-import type { DashboardWindow, ExerciseTrend, Metric, PersonalRecord } from '@/types/api'
+import type { AnalyticsSummary, DashboardWindow, ExerciseTrend, Metric, PersonalRecord } from '@/types/api'
 import { VolumeChart } from './VolumeChart'
 import { MuscleBalance } from './MuscleBalance'
 import { ActivityCalendar } from './ActivityCalendar'
@@ -107,43 +107,65 @@ export function DashboardPage() {
   )
 }
 
-function SummaryTiles({ data, unit }: { data: import('@/types/api').AnalyticsSummary; unit: string }) {
+// Four overview tiles for a clean 2×2 grid (PRD §6). Each value carries its own
+// unit or is self-describing (a duration), so a bare number is never shown
+// without a proper informational label.
+function SummaryTiles({ data, unit }: { data: AnalyticsSummary; unit: string }) {
   return (
     <div className="stat-grid">
-      <StatTile label="Workouts" metric={data.workouts} />
-      <StatTile label="Training min" metric={data.training_minutes} />
-      <StatTile label={`Volume (${unit})`} metric={data.total_volume} format={compact} />
-      <div className="stat">
-        <div className="stat-value">
-          {data.current_streak}
-          <span className="stat-unit"> wk</span>
-        </div>
-        <div className="stat-label">Streak · best {data.longest_streak}</div>
-      </div>
-      <div className="stat">
-        <div className="stat-value">{data.days_since_last == null ? '—' : data.days_since_last}</div>
-        <div className="stat-label">Days since last</div>
-      </div>
+      <StatTile value={Math.round(data.workouts.value).toLocaleString()} label="Workouts" metric={data.workouts} />
+      <StatTile value={formatDuration(data.training_minutes.value)} label="Training time" metric={data.training_minutes} />
+      <StatTile value={compact(data.total_volume.value)} valueUnit={unit} label="Total volume" metric={data.total_volume} />
+      <StatTile
+        value={String(data.current_streak)}
+        valueUnit="wk"
+        label="Current streak"
+        sub={`best ${data.longest_streak} wk`}
+      />
     </div>
   )
 }
 
-function StatTile({ label, metric, format }: { label: string; metric: Metric; format?: (n: number) => string }) {
-  const fmt = format ?? ((n: number) => Math.round(n).toLocaleString())
+function StatTile({
+  value,
+  valueUnit,
+  label,
+  metric,
+  sub,
+}: {
+  value: string
+  valueUnit?: string
+  label: string
+  metric?: Metric
+  sub?: string
+}) {
   return (
     <div className="stat">
-      <div className="stat-value">{fmt(metric.value)}</div>
+      <div className="stat-value">
+        {value}
+        {valueUnit ? <span className="stat-unit"> {valueUnit}</span> : null}
+      </div>
       <div className="stat-label">
         {label}
-        {metric.delta_pct != null ? (
+        {metric?.delta_pct != null ? (
           <span className={`delta ${metric.delta_pct >= 0 ? 'delta-up' : 'delta-down'}`}>
             {' '}
             {metric.delta_pct >= 0 ? '▲' : '▼'} {Math.abs(metric.delta_pct)}%
           </span>
         ) : null}
+        {sub ? <span className="stat-sub"> · {sub}</span> : null}
       </div>
     </div>
   )
+}
+
+// Human-friendly training duration: "45m", "1h", "5h 20m".
+function formatDuration(minutes: number): string {
+  const m = Math.round(minutes)
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  const rem = m % 60
+  return rem === 0 ? `${h}h` : `${h}h ${rem}m`
 }
 
 function TrendRow({ trend, unit, kind }: { trend: ExerciseTrend; unit: string; kind: 'up' | 'stalled' }) {

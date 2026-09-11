@@ -39,7 +39,7 @@ function renderPage(fetchMock: typeof fetch) {
       <MemoryRouter initialEntries={[`/sessions/${SESSION_ID}`]}>
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<div>Home screen</div>} />
+            <Route path="/workout" element={<div>Home screen</div>} />
             <Route path="/sessions/:id" element={<ActiveSessionPage />} />
           </Routes>
         </AuthProvider>
