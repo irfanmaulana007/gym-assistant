@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test'
 
 // E2E: native navigation chrome — the top-bar back chevron returns to the
-// previous screen, and the avatar pushes a full Profile screen (no dropdown)
-// that exposes the signed-in identity and the logout action.
+// previous screen, and the Profile tab in the bottom navigation bar opens a
+// full Profile screen that exposes the signed-in identity and the logout action.
 // The API+DB and Vite servers are started automatically on dedicated test
 // ports by playwright.config.ts webServer (never the local :8080/:5173).
 //
@@ -34,7 +34,7 @@ test('back chevron returns from routine detail to the workouts home', async ({ p
   await expect(page.getByText(/welcome back, nav/i)).toBeVisible()
 })
 
-test('avatar opens the profile screen with identity and logout', async ({ page }) => {
+test('profile tab opens the profile screen with identity and logout', async ({ page }) => {
   const email = `profile_${Date.now()}@example.com`
 
   await page.goto('/register')
@@ -45,12 +45,18 @@ test('avatar opens the profile screen with identity and logout', async ({ page }
 
   await expect(page.getByText(/welcome back, profile/i)).toBeVisible()
 
-  // Tapping the avatar navigates to a full Profile screen (not a dropdown).
-  await page.getByRole('button', { name: /^profile$/i }).click()
+  // The header carries no account button — the account lives in the bottom tab bar.
+  await expect(page.getByRole('banner').getByRole('button')).toHaveCount(0)
+
+  // Tapping the Profile tab in the bottom nav navigates to a full Profile screen.
+  await page.getByRole('link', { name: 'Profile' }).click()
   await expect(page).toHaveURL(/\/profile$/)
   await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible()
   // Email shows in both the header subtitle and the account detail row.
   await expect(page.getByText(email).first()).toBeVisible()
+
+  // The Profile screen is a root tab, so it has no back chevron.
+  await expect(page.getByRole('button', { name: 'Workouts' })).toHaveCount(0)
 
   // Logout lives on the profile screen and returns to the login screen.
   await page.getByRole('button', { name: /logout/i }).click()

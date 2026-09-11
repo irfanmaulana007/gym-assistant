@@ -82,14 +82,15 @@ export function ExerciseHistoryPage() {
   const { exercise, sessions, trend } = data
   const showChange = trend.direction === 'up' || trend.direction === 'down'
 
-  const editAction = (
-    <button type="button" className="icon-btn" aria-label="Edit exercise" onClick={openEdit}>
-      <PencilIcon />
-    </button>
-  )
-
   return (
-    <Layout title={exercise.name} back={-1} action={editAction}>
+    <Layout title={exercise.name} back={-1}>
+      <div className="detail-actions">
+        <Button type="button" size="sm" variant="ghost" aria-label="Edit exercise" onClick={openEdit}>
+          <PencilIcon />
+          Edit
+        </Button>
+      </div>
+
       <div className="card row-between">
         <div>
           <div className="section-label" style={{ padding: 0 }}>Progression</div>
