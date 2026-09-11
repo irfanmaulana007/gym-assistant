@@ -127,6 +127,70 @@ func TestRoutineAndExerciseCRUD_E2E(t *testing.T) {
 	}
 }
 
+// TestExerciseList_SortedByMuscleGroupThenName_E2E proves the routine detail
+// returns exercises sorted by primary muscle group ASC, then name ASC —
+// independent of insertion order — over real HTTP against a real database.
+func TestExerciseList_SortedByMuscleGroupThenName_E2E(t *testing.T) {
+	h := newHarnessWithDB(t)
+	token := h.registerUser(t, "sorter@example.com", "supersecret1", "Sorter")
+	routine := h.createRoutine(t, token, "Full Body", "")
+
+	// Inserted in an order that matches neither the target sort nor reverse of
+	// it, so passing can only mean the sort actually ran.
+	inserts := []struct{ name, muscle string }{
+		{"Overhead Press", "shoulders"},
+		{"Incline Press", "chest"},
+		{"Pull Up", "back"},
+		{"Bench Press", "chest"},
+		{"Deadlift", "back"},
+	}
+	for _, in := range inserts {
+		resp := h.do(t, http.MethodPost, "/api/v1/routines/"+routine+"/exercises", token, map[string]any{
+			"name":                 in.name,
+			"measurement_type":     "weight_reps",
+			"target_sets":          3,
+			"target_reps":          10,
+			"primary_muscle_group": in.muscle,
+		})
+		if resp.Status != http.StatusCreated {
+			t.Fatalf("create %q status %d body %s", in.name, resp.Status, resp.Body)
+		}
+	}
+
+	getResp := h.do(t, http.MethodGet, "/api/v1/routines/"+routine, token, nil)
+	if getResp.Status != http.StatusOK {
+		t.Fatalf("get routine status %d body %s", getResp.Status, getResp.Body)
+	}
+	var detail struct {
+		Exercises []struct {
+			Name               string `json:"name"`
+			PrimaryMuscleGroup string `json:"primary_muscle_group"`
+		} `json:"exercises"`
+	}
+	getResp.decode(t, &detail)
+
+	type row struct{ muscle, name string }
+	got := make([]row, len(detail.Exercises))
+	for i, e := range detail.Exercises {
+		got[i] = row{e.PrimaryMuscleGroup, e.Name}
+	}
+	want := []row{
+		{"back", "Deadlift"},
+		{"back", "Pull Up"},
+		{"chest", "Bench Press"},
+		{"chest", "Incline Press"},
+		{"shoulders", "Overhead Press"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d exercises, want %d: %+v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("position %d = %+v, want %+v (full: %+v)", i, got[i], want[i], got)
+		}
+	}
+}
+
 func TestRoutine_CrossUserIsolation_E2E(t *testing.T) {
 	h := newHarnessWithDB(t)
 	tokenA := h.registerUser(t, "a@example.com", "supersecret1", "A")
