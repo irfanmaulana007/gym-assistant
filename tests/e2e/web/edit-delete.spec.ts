@@ -30,8 +30,10 @@ test('edit and delete a routine and exercise from their detail pages', async ({ 
   await page.getByRole('button', { name: /save changes/i }).click()
   await expect(page.getByRole('heading', { name: 'Chest Day' })).toBeVisible()
 
-  // Add an exercise.
+  // Add an exercise (via the "Custom exercise" free-text form; PRD 0006 leads
+  // with the catalog picker).
   await page.getByRole('button', { name: 'Add exercise', exact: true }).click()
+  await page.getByRole('button', { name: /custom exercise/i }).click()
   await page.getByLabel('Name').fill('Bench Press')
   await page.getByRole('button', { name: /save exercise/i }).click()
   await expect(page.getByText('Bench Press')).toBeVisible()

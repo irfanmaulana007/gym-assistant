@@ -25,6 +25,7 @@ test('create routine, add exercise, run a session, see summary', async ({ page }
 
   // Add an exercise (also via the sheet).
   await page.getByRole('button', { name: 'Add exercise', exact: true }).click()
+  await page.getByRole('button', { name: /custom exercise/i }).click()
   await page.getByLabel('Name').fill('Bench Press')
   await page.getByRole('button', { name: /save exercise/i }).click()
   await expect(page.getByText('Bench Press')).toBeVisible()
@@ -65,6 +66,7 @@ test("shows the previous session's weight as the target to beat", async ({ page 
   await page.getByRole('button', { name: /add workout day/i }).click()
   await page.getByText('Push Day').click()
   await page.getByRole('button', { name: 'Add exercise', exact: true }).click()
+  await page.getByRole('button', { name: /custom exercise/i }).click()
   await page.getByLabel('Name').fill('Bench Press')
   await page.getByRole('button', { name: /save exercise/i }).click()
   await expect(page.getByText('Bench Press')).toBeVisible()
@@ -106,6 +108,7 @@ test('stop then discard abandons the session and redirects home', async ({ page 
   await page.getByText('Leg Day').click()
 
   await page.getByRole('button', { name: 'Add exercise', exact: true }).click()
+  await page.getByRole('button', { name: /custom exercise/i }).click()
   await page.getByLabel('Name').fill('Squat')
   await page.getByRole('button', { name: /save exercise/i }).click()
   await expect(page.getByText('Squat')).toBeVisible()

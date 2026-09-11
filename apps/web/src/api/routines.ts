@@ -2,7 +2,7 @@ import { request } from './client'
 import type { Exercise, ExerciseHistory, MeasurementType, MuscleGroup, Routine } from '@/types/api'
 
 export interface ExerciseInput {
-  name: string
+  name?: string
   measurement_type?: MeasurementType
   target_sets?: number | null
   target_reps?: number | null
@@ -11,6 +11,10 @@ export interface ExerciseInput {
   primary_muscle_group?: MuscleGroup
   secondary_muscle_groups?: MuscleGroup[]
   notes?: string
+  // Link to a shared catalog entry (PRD 0006). A string id links the exercise
+  // (muscle fields are then ignored and resolved from the catalog); explicit
+  // null unlinks it (make custom) on update.
+  catalog_exercise_id?: string | null
 }
 
 export const routinesApi = {

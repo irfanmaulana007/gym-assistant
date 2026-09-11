@@ -7,6 +7,7 @@ import { Sheet } from '@/components/Sheet'
 import { Button, ErrorText, Spinner } from '@/components/ui'
 import { PencilIcon } from '@/components/icons'
 import { EMPTY_EXERCISE_FORM, ExerciseFormFields, exerciseToInput, normalizeExerciseInput } from './ExerciseForm'
+import { muscleGroupLabel } from '@/types/api'
 import { formatDate } from '@/lib/format'
 import { ApiError } from '@/api/client'
 
@@ -29,12 +30,15 @@ export function ExerciseHistoryPage() {
 
   const [editOpen, setEditOpen] = useState(false)
   const [form, setForm] = useState<ExerciseInput>(EMPTY_EXERCISE_FORM)
+  const [linked, setLinked] = useState(false)
   const [error, setError] = useState('')
 
   const routineId = data?.exercise.routine_id
+  const wasLinked = data?.exercise.catalog_exercise_id != null
 
   const openEdit = () => {
     if (data) setForm(exerciseToInput(data.exercise))
+    setLinked(wasLinked)
     setError('')
     setEditOpen(true)
   }
@@ -69,11 +73,25 @@ export function ExerciseHistoryPage() {
   function onSave(e: FormEvent) {
     e.preventDefault()
     setError('')
-    if (!form.name.trim()) {
+    if (!form.name?.trim()) {
       setError('Exercise name is required')
       return
     }
-    updateMut.mutate(normalizeExerciseInput(form))
+    const normalized = normalizeExerciseInput(form)
+    if (linked) {
+      // Still catalog-linked: send name/targets only — muscle groups and the
+      // link stay resolved from the catalog (omitting catalog_exercise_id
+      // leaves the link unchanged).
+      const { primary_muscle_group: _p, secondary_muscle_groups: _s, ...rest } = normalized
+      void _p
+      void _s
+      updateMut.mutate(rest)
+    } else if (wasLinked) {
+      // User chose "make custom": unlink and adopt the edited muscle group.
+      updateMut.mutate({ ...normalized, catalog_exercise_id: null })
+    } else {
+      updateMut.mutate(normalized)
+    }
   }
 
   if (isLoading) return <Layout title="History" back={-1}><Spinner /></Layout>
@@ -136,7 +154,24 @@ export function ExerciseHistoryPage() {
 
       <Sheet open={editOpen} onClose={() => setEditOpen(false)} title="Edit exercise">
         <form className="stack" onSubmit={onSave}>
-          <ExerciseFormFields value={form} onChange={setForm} />
+          <ExerciseFormFields value={form} onChange={setForm} hideMuscleGroup={linked} />
+          {linked ? (
+            <div className="field">
+              <label>Muscle groups</label>
+              <div className="row wrap" style={{ gap: 'var(--sp-2)' }}>
+                <span className="badge badge-active">{muscleGroupLabel(exercise.primary_muscle_group)}</span>
+                {exercise.secondary_muscle_groups.map((g) => (
+                  <span key={g} className="badge">{muscleGroupLabel(g)}</span>
+                ))}
+              </div>
+              <p className="muted small" style={{ marginTop: 'var(--sp-2)' }}>
+                From catalog{exercise.catalog_name ? `: ${exercise.catalog_name}` : ''}.
+              </p>
+              <Button type="button" variant="ghost" block onClick={() => setLinked(false)}>
+                Make custom (edit muscle groups)
+              </Button>
+            </div>
+          ) : null}
           <ErrorText>{error}</ErrorText>
           <Button type="submit" variant="primary" block disabled={updateMut.isPending}>
             {updateMut.isPending ? 'Saving…' : 'Save changes'}

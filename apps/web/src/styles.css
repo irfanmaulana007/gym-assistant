@@ -444,6 +444,47 @@ h1, h2, h3, p { margin: 0; }
 }
 .badge-active { background: var(--primary-soft); color: var(--primary); }
 
+/* Horizontally-scrollable filter chip row (exercise picker, PRD 0006). */
+.chip-row {
+  display: flex;
+  gap: var(--sp-2);
+  overflow-x: auto;
+  padding-bottom: var(--sp-1);
+  margin: 0 calc(-1 * var(--sp-1));
+  padding-left: var(--sp-1);
+  padding-right: var(--sp-1);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.chip-row::-webkit-scrollbar { display: none; }
+.chip {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  padding: var(--sp-2) var(--sp-3);
+  min-height: 36px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.chip-active { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+
+/* Inline "back to previous step" link inside a multi-step sheet. */
+.link-back {
+  align-self: flex-start;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+.link-back:active { color: var(--text); }
+
 /* Checkbox toggle. */
 .checkbox {
   width: 30px; height: 30px;

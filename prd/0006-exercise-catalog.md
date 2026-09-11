@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Author | Irfan Maulana |
-| Status | Draft |
+| Status | Implemented |
 | Created | 2026-09-11 |
 | Updated | 2026-09-11 |
 | App | api, web |
@@ -238,3 +238,26 @@ a `CHECK` that all existing (non-null) rows already satisfy.
    proposal: allow an optional override; default to the catalog name.
 3. **Filtering UX** — group the picker by muscle group vs. a flat searchable list with a
    muscle-group filter chip row. Proposed: flat list + search + optional filter chips.
+
+## 8. Implementation notes (as shipped)
+
+Resolving the open questions above and recording decisions made while building:
+
+1. **Seed** — `migrations/0002_exercise_catalog.sql` seeds ~57 well-known movements
+   spanning every muscle group, each with a primary/secondary tagging and a sensible
+   `default_measurement_type` (e.g. `Plank` → duration, `Treadmill Run` → distance).
+2. **Muscle resolution is done in Go**, not SQL — the repository reads the exercise's
+   own columns *and* the linked catalog columns, then resolves via a pure
+   `pkg/catalog.ResolveMuscleGroups` helper. The response shape is identical to the
+   SQL-`COALESCE` approach in §4.2, but the rule is unit-testable in isolation (the
+   `tests/` module can only import `pkg/*`). The session snapshot still resolves in SQL.
+3. **Custom name on a linked exercise** — allowed; the request `name` is optional and
+   defaults to the catalog name when omitted (`measurement_type` defaults to the
+   catalog's `default_measurement_type`).
+4. **Filtering UX** — flat `list-grouped` of catalog rows + a search field + a
+   horizontally-scrollable muscle-group chip row. The full catalog (static master
+   data) is fetched once and filtered client-side for an instant, offline-friendly
+   picker; the API's `?search=`/`?muscle_group=` filters still exist and are covered.
+5. **Unlink status code** — clearing a catalog link without a `primary_muscle_group`
+   returns **422** (`validation_error`), matching the existing validation-error
+   envelope used across the API, rather than a bare 400.

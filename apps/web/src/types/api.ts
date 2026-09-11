@@ -71,7 +71,24 @@ export interface Exercise {
   position: number
   created_at: string
   updated_at: string
+  // When set, this exercise is linked to a shared catalog entry (PRD 0006) and
+  // its muscle groups above are resolved from the catalog on read. Null for a
+  // custom exercise, which owns its muscle-group columns.
+  catalog_exercise_id: string | null
+  catalog_name?: string | null
   last_set?: LastSet | null
+}
+
+// A shared catalog movement (PRD 0006): global read-only master data a routine
+// exercise can link to instead of re-typing name + muscle groups.
+export interface CatalogExercise {
+  id: string
+  name: string
+  primary_muscle_group: MuscleGroup
+  secondary_muscle_groups: MuscleGroup[]
+  default_measurement_type: MeasurementType
+  created_at: string
+  updated_at: string
 }
 
 export interface Routine {

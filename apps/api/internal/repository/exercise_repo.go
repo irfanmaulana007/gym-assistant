@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/domain"
+	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/catalog"
 )
 
 // ExerciseRepository persists exercises. Ownership is enforced by joining to the
@@ -40,24 +41,58 @@ type ExerciseInput struct {
 	SecondaryMuscleGroups []string
 	DefaultMetadata       domain.JSONMap
 	Notes                 *string
+
+	// CatalogExerciseID, when non-nil, links the exercise to a catalog entry
+	// (PRD 0006). On create this makes the exercise catalog-backed (its own
+	// muscle columns are left NULL and resolved from the catalog on read). On
+	// update it (re)links to the given catalog entry.
+	CatalogExerciseID *string
+	// ClearCatalog requests unlinking on update: the exercise becomes custom
+	// again. The service requires PrimaryMuscleGroup to be supplied alongside so
+	// the CHECK constraint still holds. Ignored on create.
+	ClearCatalog bool
 }
 
-const exerciseCols = `
-	id, routine_id, name, measurement_type,
-	target_sets, target_reps, target_weight, target_duration_seconds,
-	target_distance, distance_unit, primary_muscle_group,
-	COALESCE(secondary_muscle_groups, '{}')::text[] AS secondary_muscle_groups,
-	default_metadata, notes, position, created_at, updated_at`
+// resolvedExerciseSelect reads an exercise together with its (optional) linked
+// catalog entry. Muscle groups are resolved in Go (see scanExercise) from the
+// catalog when linked, or the exercise's own columns when custom — so the JSON
+// response always carries concrete muscle groups (PRD §4.2). Callers append the
+// appropriate JOIN/WHERE/ORDER BY.
+const resolvedExerciseSelect = `
+	SELECT
+		e.id, e.routine_id, e.name, e.measurement_type,
+		e.target_sets, e.target_reps, e.target_weight, e.target_duration_seconds,
+		e.target_distance, e.distance_unit,
+		e.primary_muscle_group,
+		COALESCE(e.secondary_muscle_groups, '{}')::text[],
+		e.default_metadata, e.notes, e.position, e.created_at, e.updated_at,
+		e.catalog_exercise_id,
+		ec.primary_muscle_group,
+		COALESCE(ec.secondary_muscle_groups, '{}')::text[],
+		ec.name
+	FROM exercises e
+	LEFT JOIN exercise_catalog ec ON ec.id = e.catalog_exercise_id`
 
 func scanExercise(row pgx.Row) (*domain.Exercise, error) {
 	var e domain.Exercise
 	var meta []byte
+	var ownPrimary *string
+	var ownSecondary []string
+	var catalogID *string
+	var catalogPrimary *string
+	var catalogSecondary []string
+	var catalogName *string
 	err := row.Scan(
 		&e.ID, &e.RoutineID, &e.Name, &e.MeasurementType,
 		&e.TargetSets, &e.TargetReps, &e.TargetWeight, &e.TargetDurationSeconds,
-		&e.TargetDistance, &e.DistanceUnit, &e.PrimaryMuscleGroup,
-		&e.SecondaryMuscleGroups,
+		&e.TargetDistance, &e.DistanceUnit,
+		&ownPrimary,
+		&ownSecondary,
 		&meta, &e.Notes, &e.Position, &e.CreatedAt, &e.UpdatedAt,
+		&catalogID,
+		&catalogPrimary,
+		&catalogSecondary,
+		&catalogName,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -66,10 +101,22 @@ func scanExercise(row pgx.Row) (*domain.Exercise, error) {
 		return nil, err
 	}
 	e.DefaultMetadata = decodeMeta(meta)
-	if e.SecondaryMuscleGroups == nil {
-		e.SecondaryMuscleGroups = []string{}
-	}
+	e.CatalogExerciseID = catalogID
+	e.CatalogName = catalogName
+	primary, secondary := catalog.ResolveMuscleGroups(
+		catalogID != nil,
+		deref(catalogPrimary, ""), catalogSecondary,
+		deref(ownPrimary, ""), ownSecondary,
+	)
+	e.PrimaryMuscleGroup = primary
+	e.SecondaryMuscleGroups = secondary
 	return &e, nil
+}
+
+// getResolvedByID re-reads an exercise (with catalog resolution) by id alone —
+// used after a write to return the fully resolved row.
+func (r *ExerciseRepository) getResolvedByID(ctx context.Context, id string) (*domain.Exercise, error) {
+	return scanExercise(r.pool.QueryRow(ctx, resolvedExerciseSelect+` WHERE e.id = $1`, id))
 }
 
 // ownsRoutine reports whether the routine exists and belongs to the user.
@@ -92,44 +139,55 @@ func (r *ExerciseRepository) Create(ctx context.Context, userID, routineID strin
 		return nil, ErrNotFound
 	}
 
+	// Linked exercises leave their own muscle columns NULL/empty — the catalog is
+	// the source of truth, resolved on read. Custom exercises populate them
+	// (default primary 'other', mirroring the pre-catalog behavior).
+	var primary any // NULL when linked
+	var secondary string
+	if in.CatalogExerciseID != nil {
+		primary = nil
+		secondary = "{}"
+	} else {
+		primary = deref(in.PrimaryMuscleGroup, "other")
+		secondary = enumArrayLiteral(in.SecondaryMuscleGroups)
+	}
+
 	const q = `
 		INSERT INTO exercises (
 			routine_id, name, measurement_type,
 			target_sets, target_reps, target_weight, target_duration_seconds,
 			target_distance, distance_unit, primary_muscle_group,
-			secondary_muscle_groups, default_metadata, notes, position
+			secondary_muscle_groups, default_metadata, notes, catalog_exercise_id, position
 		) VALUES (
 			$1, $2, $3::measurement_type,
 			$4, $5, $6, $7,
 			$8, $9::distance_unit, $10::muscle_group,
-			$11::muscle_group[], $12::jsonb, $13,
+			$11::muscle_group[], $12::jsonb, $13, $14,
 			COALESCE((SELECT MAX(position) + 1 FROM exercises WHERE routine_id = $1), 0)
 		)
-		RETURNING ` + exerciseCols
+		RETURNING id`
 
-	return scanExercise(r.pool.QueryRow(ctx, q,
+	var id string
+	if err := r.pool.QueryRow(ctx, q,
 		routineID,
 		deref(in.Name, ""),
 		deref(in.MeasurementType, "weight_reps"),
 		in.TargetSets, in.TargetReps, in.TargetWeight, in.TargetDurationSeconds,
 		in.TargetDistance, in.DistanceUnit,
-		deref(in.PrimaryMuscleGroup, "other"),
-		enumArrayLiteral(in.SecondaryMuscleGroups),
+		primary,
+		secondary,
 		encodeMeta(in.DefaultMetadata),
 		deref(in.Notes, ""),
-	))
+		in.CatalogExerciseID,
+	).Scan(&id); err != nil {
+		return nil, err
+	}
+	return r.getResolvedByID(ctx, id)
 }
 
 // GetByID returns an exercise reachable through a routine the user owns.
 func (r *ExerciseRepository) GetByID(ctx context.Context, userID, id string) (*domain.Exercise, error) {
-	const q = `
-		SELECT
-			e.id, e.routine_id, e.name, e.measurement_type,
-			e.target_sets, e.target_reps, e.target_weight, e.target_duration_seconds,
-			e.target_distance, e.distance_unit, e.primary_muscle_group,
-			COALESCE(e.secondary_muscle_groups, '{}')::text[],
-			e.default_metadata, e.notes, e.position, e.created_at, e.updated_at
-		FROM exercises e
+	const q = resolvedExerciseSelect + `
 		JOIN routines rt ON rt.id = e.routine_id
 		WHERE e.id = $1 AND rt.user_id = $2`
 	return scanExercise(r.pool.QueryRow(ctx, q, id, userID))
@@ -137,14 +195,8 @@ func (r *ExerciseRepository) GetByID(ctx context.Context, userID, id string) (*d
 
 // ListByRoutine returns the routine's exercises ordered by position.
 func (r *ExerciseRepository) ListByRoutine(ctx context.Context, routineID string) ([]domain.Exercise, error) {
-	const q = `
-		SELECT
-			id, routine_id, name, measurement_type,
-			target_sets, target_reps, target_weight, target_duration_seconds,
-			target_distance, distance_unit, primary_muscle_group,
-			COALESCE(secondary_muscle_groups, '{}')::text[],
-			default_metadata, notes, position, created_at, updated_at
-		FROM exercises WHERE routine_id = $1 ORDER BY position, created_at`
+	const q = resolvedExerciseSelect + `
+		WHERE e.routine_id = $1 ORDER BY e.position, e.created_at`
 	rows, err := r.pool.Query(ctx, q, routineID)
 	if err != nil {
 		return nil, err
@@ -177,6 +229,19 @@ func (r *ExerciseRepository) Update(ctx context.Context, userID, id string, in E
 		meta = &m
 	}
 
+	// catalogOp drives the catalog-linkage change: 0 = unchanged, 1 = link to
+	// $15, 2 = clear (unlink → custom). When linking, the exercise's own muscle
+	// columns are reset (NULL primary, empty secondary) so the catalog is the
+	// sole source of truth; when clearing, the caller-supplied muscle columns
+	// take effect (the service requires primary_muscle_group alongside a clear).
+	catalogOp := 0
+	switch {
+	case in.CatalogExerciseID != nil:
+		catalogOp = 1
+	case in.ClearCatalog:
+		catalogOp = 2
+	}
+
 	// RHS column references are qualified with e. because routines (joined for
 	// the ownership check) shares column names like name/notes/position.
 	const q = `
@@ -189,27 +254,39 @@ func (r *ExerciseRepository) Update(ctx context.Context, userID, id string, in E
 			target_duration_seconds = COALESCE($8, e.target_duration_seconds),
 			target_distance = COALESCE($9, e.target_distance),
 			distance_unit = COALESCE($10::distance_unit, e.distance_unit),
-			primary_muscle_group = COALESCE($11::muscle_group, e.primary_muscle_group),
-			secondary_muscle_groups = COALESCE($12::muscle_group[], e.secondary_muscle_groups),
+			primary_muscle_group = CASE $16::int
+				WHEN 1 THEN NULL
+				ELSE COALESCE($11::muscle_group, e.primary_muscle_group) END,
+			secondary_muscle_groups = CASE $16::int
+				WHEN 1 THEN '{}'::muscle_group[]
+				ELSE COALESCE($12::muscle_group[], e.secondary_muscle_groups) END,
+			catalog_exercise_id = CASE $16::int
+				WHEN 1 THEN $15::uuid
+				WHEN 2 THEN NULL
+				ELSE e.catalog_exercise_id END,
 			default_metadata = COALESCE($13::jsonb, e.default_metadata),
 			notes = COALESCE($14, e.notes),
 			updated_at = now()
 		FROM routines rt
 		WHERE e.id = $1 AND rt.id = e.routine_id AND rt.user_id = $2
-		RETURNING
-			e.id, e.routine_id, e.name, e.measurement_type,
-			e.target_sets, e.target_reps, e.target_weight, e.target_duration_seconds,
-			e.target_distance, e.distance_unit, e.primary_muscle_group,
-			COALESCE(e.secondary_muscle_groups, '{}')::text[],
-			e.default_metadata, e.notes, e.position, e.created_at, e.updated_at`
+		RETURNING e.id`
 
-	return scanExercise(r.pool.QueryRow(ctx, q,
+	var updatedID string
+	err := r.pool.QueryRow(ctx, q,
 		id, userID,
 		in.Name, in.MeasurementType,
 		in.TargetSets, in.TargetReps, in.TargetWeight, in.TargetDurationSeconds,
 		in.TargetDistance, in.DistanceUnit, in.PrimaryMuscleGroup,
 		secondary, meta, in.Notes,
-	))
+		in.CatalogExerciseID, catalogOp,
+	).Scan(&updatedID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return r.getResolvedByID(ctx, updatedID)
 }
 
 // HistoryRow is one logged set for an exercise, joined to its session, used to

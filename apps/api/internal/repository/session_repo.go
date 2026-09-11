@@ -88,7 +88,9 @@ func (r *SessionRepository) Start(ctx context.Context, userID, routineID string)
 		return nil, err
 	}
 
-	// Snapshot routine exercises into the checklist.
+	// Snapshot routine exercises into the checklist. Muscle groups are the
+	// *resolved* values — catalog-backed for linked exercises (PRD §4.4) — so a
+	// past session never changes even if the catalog is later edited.
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO session_exercises (
 			session_id, exercise_id, position, name_snapshot, measurement_type,
@@ -97,8 +99,12 @@ func (r *SessionRepository) Start(ctx context.Context, userID, routineID string)
 		SELECT
 			$1, e.id, e.position, e.name, e.measurement_type,
 			e.target_sets, e.target_reps, e.target_weight, e.target_duration_seconds,
-			e.primary_muscle_group, e.secondary_muscle_groups, 'pending'
-		FROM exercises e WHERE e.routine_id = $2
+			COALESCE(ec.primary_muscle_group, e.primary_muscle_group),
+			COALESCE(ec.secondary_muscle_groups, e.secondary_muscle_groups),
+			'pending'
+		FROM exercises e
+		LEFT JOIN exercise_catalog ec ON ec.id = e.catalog_exercise_id
+		WHERE e.routine_id = $2
 		ORDER BY e.position`, sessionID, routineID); err != nil {
 		return nil, err
 	}
