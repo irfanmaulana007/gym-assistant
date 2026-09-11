@@ -83,6 +83,69 @@ connection string it gives you), or run your own Postgres. You'll need a
 
 ---
 
+## Rebuild only the changed service (Watch Paths)
+
+By default a push to `main` triggers **every** Dokploy application watching this
+repo — so a web-only change still rebuilds the API and vice versa. To rebuild a
+service **only when its own code changes**, use Dokploy's **Watch Paths**.
+
+Watch Paths is a per-application list of glob patterns. With auto-deploy on, a
+push deploys that application **only if** at least one changed file matches one
+of its patterns; otherwise Dokploy skips the build. In this monorepo that means
+a web-only commit rebuilds just the web app, and an API-only commit rebuilds
+just the API.
+
+### Where to set it
+
+Per application: **Application → Deployments (or General) → Watch Paths** — add
+one pattern per line, then save. (Also available on Docker Compose applications.)
+
+### Requirements
+
+- **Auto-deploy must be enabled** for the application (GitHub App integration, or
+  the Git provider webhook). Watch Paths filters those auto-deploys — it does not
+  create the trigger.
+- Works with GitHub, GitLab, Bitbucket, and Gitea. With the generic **Git**
+  provider it only works against one of those hosts.
+- It does **not** affect **manual** ("Deploy" button) or API/CLI deploys — those
+  always build regardless of the patterns.
+
+### Patterns for this repo
+
+Match each service to exactly what its Docker build reads (build context is the
+repo root for both — see [What ships in Docker](#what-ships-in-docker)).
+
+**API application** — the Go build only ever touches `apps/api/`:
+
+```
+apps/api/**
+```
+
+**Web application** — the Vite build reads `apps/web/`, **plus** the root npm
+workspace manifests, because the Dockerfile runs `npm ci` against them
+(`COPY package.json package-lock.json`):
+
+```
+apps/web/**
+package.json
+package-lock.json
+```
+
+> Include the root `package.json` / `package-lock.json` in the **web** patterns
+> only. A dependency bump there must rebuild the web bundle; the API build never
+> reads them, so leaving them out of the API patterns is what keeps a web-only
+> dependency change from rebuilding the API.
+
+Adjust the patterns if a change should hit both — e.g. a shared file both builds
+consume would need to appear in both applications' Watch Paths.
+
+### Supported glob syntax
+
+Standard globbing: `**` (any depth), `*` (single segment), negation (`!apps/web/**/*.test.tsx`),
+brace expansion (`apps/web/src/{components,features}/**`), and character classes.
+
+---
+
 ## Option B — Deploy the whole stack with Docker Compose
 
 Dokploy also supports a **Docker Compose** application. Point it at
