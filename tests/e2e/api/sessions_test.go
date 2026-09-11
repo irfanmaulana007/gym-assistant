@@ -189,6 +189,68 @@ func TestSessionLifecycle_E2E(t *testing.T) {
 	}
 }
 
+// TestSessionStart_ExercisesSortedByMuscleGroupThenName_E2E proves the "start
+// workout" checklist snapshot is ordered by primary muscle group ASC, then name
+// ASC — the same rule the routine detail list uses — independent of insertion
+// order, over real HTTP against a real database.
+func TestSessionStart_ExercisesSortedByMuscleGroupThenName_E2E(t *testing.T) {
+	h := newHarnessWithDB(t)
+	token := h.registerUser(t, "session-sorter@example.com", "supersecret1", "SessSort")
+	routine := h.createRoutine(t, token, "Full Body", "")
+
+	// Inserted in an order that matches neither the target sort nor its reverse,
+	// so passing can only mean the snapshot sort actually ran.
+	inserts := []struct{ name, muscle string }{
+		{"Overhead Press", "shoulders"},
+		{"Incline Press", "chest"},
+		{"Pull Up", "back"},
+		{"Bench Press", "chest"},
+		{"Deadlift", "back"},
+	}
+	for _, in := range inserts {
+		h.addExercise(t, token, routine, map[string]any{
+			"name":                 in.name,
+			"measurement_type":     "weight_reps",
+			"target_sets":          3,
+			"target_reps":          10,
+			"primary_muscle_group": in.muscle,
+		})
+	}
+
+	startResp := h.do(t, http.MethodPost, "/api/v1/routines/"+routine+"/sessions", token, nil)
+	if startResp.Status != http.StatusCreated {
+		t.Fatalf("start status %d body %s", startResp.Status, startResp.Body)
+	}
+	var session struct {
+		Exercises []struct {
+			NameSnapshot       string `json:"name_snapshot"`
+			PrimaryMuscleGroup string `json:"primary_muscle_group"`
+		} `json:"exercises"`
+	}
+	startResp.decode(t, &session)
+
+	type row struct{ muscle, name string }
+	got := make([]row, len(session.Exercises))
+	for i, e := range session.Exercises {
+		got[i] = row{e.PrimaryMuscleGroup, e.NameSnapshot}
+	}
+	want := []row{
+		{"back", "Deadlift"},
+		{"back", "Pull Up"},
+		{"chest", "Bench Press"},
+		{"chest", "Incline Press"},
+		{"shoulders", "Overhead Press"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %d checklist items, want %d: %+v", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("position %d = %+v, want %+v (full: %+v)", i, got[i], want[i], got)
+		}
+	}
+}
+
 func TestSession_CrossUserIsolation_E2E(t *testing.T) {
 	h := newHarnessWithDB(t)
 	tokenA := h.registerUser(t, "sa@example.com", "supersecret1", "SA")

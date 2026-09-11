@@ -91,21 +91,33 @@ func (r *SessionRepository) Start(ctx context.Context, userID, routineID string)
 	// Snapshot routine exercises into the checklist. Muscle groups are the
 	// *resolved* values — catalog-backed for linked exercises (PRD §4.4) — so a
 	// past session never changes even if the catalog is later edited.
+	//
+	// Position is assigned by the same rule the routine detail page shows —
+	// resolved primary muscle group (ASC), then name (ASC), see
+	// ordering.ExerciseLess — so the "start workout" checklist matches that
+	// order. The muscle group is cast to text so it sorts alphabetically by
+	// label; a bare enum ORDER BY would use enum definition order and mis-order
+	// catalog-linked rows (whose own column is NULL). Freezing the order into
+	// `position` (rather than sorting on read) keeps any later user reordering
+	// intact.
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO session_exercises (
 			session_id, exercise_id, position, name_snapshot, measurement_type,
 			target_sets, target_reps, target_weight, target_duration_seconds,
 			primary_muscle_group, secondary_muscle_groups, status)
 		SELECT
-			$1, e.id, e.position, e.name, e.measurement_type,
+			$1, e.id,
+			(ROW_NUMBER() OVER (
+				ORDER BY COALESCE(ec.primary_muscle_group, e.primary_muscle_group)::text, e.name
+			) - 1)::int,
+			e.name, e.measurement_type,
 			e.target_sets, e.target_reps, e.target_weight, e.target_duration_seconds,
 			COALESCE(ec.primary_muscle_group, e.primary_muscle_group),
 			COALESCE(ec.secondary_muscle_groups, e.secondary_muscle_groups),
 			'pending'
 		FROM exercises e
 		LEFT JOIN exercise_catalog ec ON ec.id = e.catalog_exercise_id
-		WHERE e.routine_id = $2
-		ORDER BY e.position`, sessionID, routineID); err != nil {
+		WHERE e.routine_id = $2`, sessionID, routineID); err != nil {
 		return nil, err
 	}
 

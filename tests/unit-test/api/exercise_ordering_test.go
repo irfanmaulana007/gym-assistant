@@ -65,3 +65,38 @@ func TestExerciseLess_SortsSlice(t *testing.T) {
 		}
 	}
 }
+
+// TestExerciseLess_SessionStartSnapshotOrder documents that the "start workout"
+// checklist snapshot uses the same rule as the routine detail list: when a
+// session is started, exercises are frozen into `position` by muscle group ASC
+// then name ASC (see SessionRepository.Start). This mirrors the scrambled
+// insertion set used by the session-start e2e test so the two stay in lockstep.
+func TestExerciseLess_SessionStartSnapshotOrder(t *testing.T) {
+	type ex struct{ muscle, name string }
+	// Same scramble the e2e inserts — matches neither the target sort nor its
+	// reverse, so a correct result can only mean the rule actually applied.
+	in := []ex{
+		{"shoulders", "Overhead Press"},
+		{"chest", "Incline Press"},
+		{"back", "Pull Up"},
+		{"chest", "Bench Press"},
+		{"back", "Deadlift"},
+	}
+	want := []ex{
+		{"back", "Deadlift"},
+		{"back", "Pull Up"},
+		{"chest", "Bench Press"},
+		{"chest", "Incline Press"},
+		{"shoulders", "Overhead Press"},
+	}
+
+	sort.SliceStable(in, func(i, j int) bool {
+		return ordering.ExerciseLess(in[i].muscle, in[i].name, in[j].muscle, in[j].name)
+	})
+
+	for i := range want {
+		if in[i] != want[i] {
+			t.Fatalf("position %d = %+v, want %+v (full: %+v)", i, in[i], want[i], in)
+		}
+	}
+}
