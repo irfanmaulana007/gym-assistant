@@ -80,3 +80,14 @@ export function UserIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function ChartIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} aria-hidden {...props}>
+      <line x1="3" y1="21" x2="21" y2="21" />
+      <rect x="5" y="12" width="3.5" height="6" rx="1" />
+      <rect x="10.25" y="8" width="3.5" height="10" rx="1" />
+      <rect x="15.5" y="4" width="3.5" height="14" rx="1" />
+    </svg>
+  )
+}

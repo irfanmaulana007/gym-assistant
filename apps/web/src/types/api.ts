@@ -189,3 +189,80 @@ export interface ExerciseHistory {
   }[]
   trend: Trend
 }
+
+// --- Analytics dashboard (PRD 0007) ---
+
+export type DashboardWindow = 'week' | 'month' | 'quarter' | 'year' | 'all'
+
+export interface AnalyticsWindow {
+  key: string
+  from: string
+  to: string
+  bucket: string
+}
+
+/** A windowed value with its previous-window value and signed percent delta
+ * (null when the previous window is zero or absent — e.g. the "all" window). */
+export interface Metric {
+  value: number
+  previous: number
+  delta_pct: number | null
+}
+
+export interface AnalyticsSummary {
+  workouts: Metric
+  training_minutes: Metric
+  total_volume: Metric
+  current_streak: number
+  longest_streak: number
+  days_since_last: number | null
+}
+
+export interface VolumePoint {
+  bucket_start: string
+  volume: number
+  sets: number
+}
+
+export interface MuscleGroupStat {
+  muscle_group: string
+  sets: number
+  volume: number
+  frequency: number
+  undertrained: boolean
+}
+
+export interface ExerciseTrend {
+  exercise_id: string
+  name: string
+  direction: 'up' | 'down' | 'flat' | 'none'
+  change: number
+  stalled: boolean
+  sessions: number
+}
+
+export interface PersonalRecord {
+  exercise_id: string
+  name: string
+  heaviest_weight: number
+  heaviest_reps: number
+  est_one_rm: number
+  is_new_this_window: boolean
+}
+
+export interface CalendarDay {
+  date: string
+  count: number
+}
+
+export interface Dashboard {
+  window: AnalyticsWindow
+  volume_unit: string
+  summary: AnalyticsSummary
+  volume_series: VolumePoint[]
+  muscle_groups: MuscleGroupStat[]
+  trending_up: ExerciseTrend[]
+  stalled: ExerciseTrend[]
+  records: PersonalRecord[]
+  calendar: CalendarDay[]
+}

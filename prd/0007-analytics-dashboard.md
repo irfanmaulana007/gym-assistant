@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Author | Irfan Maulana |
-| Status | Draft |
+| Status | Implemented |
 | Created | 2026-09-11 |
 | Updated | 2026-09-11 |
 | App | api, web |
