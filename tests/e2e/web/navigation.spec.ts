@@ -20,13 +20,17 @@ test('back chevron returns from routine detail to the workouts home', async ({ p
   // Home shows the personalized greeting.
   await expect(page.getByText(/welcome back, nav/i)).toBeVisible()
 
+  // Home is a top-level tab screen, so the nav bar carries no header title —
+  // only child screens (pushed with a back chevron) show one.
+  await expect(page.getByRole('banner').getByRole('heading', { name: 'Workouts' })).toHaveCount(0)
+
   // Create and open a routine (the form opens in a modal/bottom-sheet).
   await page.getByRole('button', { name: /new workout day/i }).click()
   await page.getByLabel('Workout day name').fill('Leg Day')
   await page.getByRole('button', { name: /add workout day/i }).click()
   await page.getByText('Leg Day').click()
 
-  // The detail screen shows the routine name as the nav title.
+  // The detail screen is a child screen, so it shows the routine name as the nav title.
   await expect(page.getByRole('heading', { name: 'Leg Day' })).toBeVisible()
 
   // Tap the back chevron → back on the workouts home.
@@ -51,8 +55,9 @@ test('profile tab opens the profile screen with identity and logout', async ({ p
   // Tapping the Profile tab in the bottom nav navigates to a full Profile screen.
   await page.getByRole('link', { name: 'Profile' }).click()
   await expect(page).toHaveURL(/\/profile$/)
-  await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible()
-  // Email shows in both the header subtitle and the account detail row.
+  // Profile is a top-level tab screen: no header title, its identity lives in the
+  // page body (avatar + name + the account rows below).
+  await expect(page.getByRole('banner').getByRole('heading', { name: 'Profile' })).toHaveCount(0)
   await expect(page.getByText(email).first()).toBeVisible()
 
   // The Profile screen is a root tab, so it has no back chevron.

@@ -59,6 +59,7 @@ test('edit and delete a routine and exercise from their detail pages', async ({ 
   await page.getByRole('button', { name: /edit workout day/i }).click()
   page.once('dialog', (d) => d.accept())
   await page.getByRole('button', { name: /delete workout day/i }).click()
-  await expect(page.getByRole('heading', { name: 'Workouts' })).toBeVisible()
+  // Home is a top-level tab screen with no header title — its greeting identifies it.
+  await expect(page.getByText(/welcome back, edit/i)).toBeVisible()
   await expect(page.getByText('Chest Day')).toHaveCount(0)
 })
