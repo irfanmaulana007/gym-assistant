@@ -9,6 +9,10 @@ export type BackTarget = string | number | boolean
 // the header clean is a repo rule — see .claude/rules/native-mobile-ux.md and
 // PRD 0005. The empty right column preserves the grid so the title stays
 // optically centered.
+//
+// The title only renders on child screens — those pushed with a back chevron.
+// Top-level tab screens (Home/Profile) carry their own large in-body heading, so
+// a header title there would just be redundant chrome; their nav bar stays empty.
 export function NavBar({
   title,
   back,
@@ -20,6 +24,8 @@ export function NavBar({
 }) {
   const navigate = useNavigate()
 
+  const hasBack = back != null && back !== false
+
   const goBack = () => {
     if (typeof back === 'string') navigate(back)
     else if (typeof back === 'number') navigate(back)
@@ -29,7 +35,7 @@ export function NavBar({
   return (
     <header className="navbar">
       <div className="navbar-left">
-        {back != null && back !== false ? (
+        {hasBack ? (
           <button type="button" className="nav-back" onClick={goBack} aria-label={backLabel}>
             <ChevronLeft />
             <span>{backLabel}</span>
@@ -37,7 +43,7 @@ export function NavBar({
         ) : null}
       </div>
       <div className="navbar-center">
-        <h1 className="navbar-title">{title}</h1>
+        {hasBack ? <h1 className="navbar-title">{title}</h1> : null}
       </div>
       <div className="navbar-right" aria-hidden />
     </header>
