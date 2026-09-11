@@ -81,6 +81,10 @@ h1, h2, h3, p { margin: 0; }
 
 /* ---------- App shell ---------- */
 .app-shell {
+  /* Space the top nav bar occupies (safe-area inset + bar height). Sticky
+     offsets and the headerless safe-area fallback derive from this single
+     source so they stay correct whether or not the bar is mounted. */
+  --header-space: calc(var(--safe-top) + var(--header-h));
   max-width: var(--max-width);
   margin: 0 auto;
   min-height: 100%;
@@ -88,6 +92,16 @@ h1, h2, h3, p { margin: 0; }
   flex-direction: column;
   background: var(--bg);
   position: relative;
+}
+
+/* Top-level / full-screen flows render no nav bar (see Layout). There's no
+   bar to clear, so the header space collapses to just the safe-area inset,
+   and the main area takes that inset over as its own top padding. */
+.app-shell.no-header {
+  --header-space: var(--safe-top);
+}
+.app-shell.no-header .app-main {
+  padding-top: calc(var(--sp-4) + var(--safe-top));
 }
 
 /* ---------- Nav bar (native top bar) ---------- */
@@ -518,7 +532,7 @@ h1, h2, h3, p { margin: 0; }
 /* Session control bar (sticky under nav). */
 .session-bar {
   position: sticky;
-  top: calc(var(--header-h) + var(--safe-top));
+  top: var(--header-space);
   z-index: 10;
   background: var(--surface);
   border: 1px solid var(--border);
