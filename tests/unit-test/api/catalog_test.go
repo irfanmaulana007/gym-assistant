@@ -84,3 +84,30 @@ func TestValidateEntry(t *testing.T) {
 		}
 	})
 }
+
+// TestSeedEntriesValidVocab guards that the catalog rows added in migration
+// 0003 (Hack Squat, Incline Walk, Stair Climber, Hip Adductor, Hip Abductor)
+// use only valid controlled-vocab muscle groups and measurement types — the
+// same rule the API enforces on any catalog entry.
+func TestSeedEntriesValidVocab(t *testing.T) {
+	entries := []struct {
+		name        string
+		primary     string
+		secondary   []string
+		measurement string
+	}{
+		{"Hack Squat", "quads", []string{"glutes", "hamstrings"}, "weight_reps"},
+		{"Incline Walk", "cardio", []string{"quads", "glutes", "calves"}, "duration"},
+		{"Stair Climber", "cardio", []string{"quads", "glutes", "calves"}, "duration"},
+		{"Hip Adductor", "quads", nil, "weight_reps"},
+		{"Hip Abductor", "glutes", nil, "weight_reps"},
+	}
+	for _, e := range entries {
+		t.Run(e.name, func(t *testing.T) {
+			details := catalog.ValidateEntry(e.primary, e.secondary, e.measurement)
+			if len(details) != 0 {
+				t.Errorf("%q has invalid vocab: %v", e.name, details)
+			}
+		})
+	}
+}
