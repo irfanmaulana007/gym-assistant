@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/domain"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/catalog"
+	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/ordering"
 )
 
 // ExerciseRepository persists exercises. Ownership is enforced by joining to the
@@ -193,10 +195,15 @@ func (r *ExerciseRepository) GetByID(ctx context.Context, userID, id string) (*d
 	return scanExercise(r.pool.QueryRow(ctx, q, id, userID))
 }
 
-// ListByRoutine returns the routine's exercises ordered by position.
+// ListByRoutine returns the routine's exercises sorted by resolved primary
+// muscle group (ASC), then name (ASC). Muscle groups are resolved in Go from the
+// catalog when linked (see scanExercise), so the sort must happen after the scan
+// rather than in SQL — a SQL ORDER BY on primary_muscle_group would mis-order
+// catalog-linked rows (their own column is NULL) and sort by enum definition
+// order instead of alphabetically.
 func (r *ExerciseRepository) ListByRoutine(ctx context.Context, routineID string) ([]domain.Exercise, error) {
 	const q = resolvedExerciseSelect + `
-		WHERE e.routine_id = $1 ORDER BY e.position, e.created_at`
+		WHERE e.routine_id = $1`
 	rows, err := r.pool.Query(ctx, q, routineID)
 	if err != nil {
 		return nil, err
@@ -211,7 +218,17 @@ func (r *ExerciseRepository) ListByRoutine(ctx context.Context, routineID string
 		}
 		out = append(out, *e)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	sort.SliceStable(out, func(i, j int) bool {
+		return ordering.ExerciseLess(
+			out[i].PrimaryMuscleGroup, out[i].Name,
+			out[j].PrimaryMuscleGroup, out[j].Name,
+		)
+	})
+	return out, nil
 }
 
 // Update applies non-nil fields to an exercise the user owns.
