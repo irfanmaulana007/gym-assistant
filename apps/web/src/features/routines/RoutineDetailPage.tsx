@@ -5,6 +5,7 @@ import { exercisesApi, routinesApi, type ExerciseInput } from '@/api/routines'
 import { sessionsApi } from '@/api/sessions'
 import { Layout } from '@/components/Layout'
 import { Sheet } from '@/components/Sheet'
+import { Fab } from '@/components/Fab'
 import { Button, ErrorText, Field, Spinner } from '@/components/ui'
 import { ChevronRight, PencilIcon, PlusIcon } from '@/components/icons'
 import { EMPTY_EXERCISE_FORM, ExerciseFormFields, normalizeExerciseInput } from '@/features/exercises/ExerciseForm'
@@ -108,19 +109,16 @@ export function RoutineDetailPage() {
 
   const exercises = routine.exercises ?? []
 
-  const actions = (
-    <>
-      <button type="button" className="icon-btn" aria-label="Edit workout day" onClick={openEdit}>
-        <PencilIcon />
-      </button>
-      <button type="button" className="icon-btn" aria-label="Add exercise" onClick={openSheet}>
-        <PlusIcon />
-      </button>
-    </>
-  )
-
   return (
-    <Layout title={routine.name} back="/" backLabel="Workouts" action={actions}>
+    <Layout title={routine.name} back="/" backLabel="Workouts">
+      <div className="detail-actions">
+        {routine.notes ? <p className="muted grow">{routine.notes}</p> : null}
+        <Button type="button" size="sm" variant="ghost" aria-label="Edit workout day" onClick={openEdit}>
+          <PencilIcon />
+          Edit
+        </Button>
+      </div>
+
       {exercises.length > 0 ? (
         <>
           <div className="section-label">Exercises</div>
@@ -200,6 +198,10 @@ export function RoutineDetailPage() {
           </Button>
         </form>
       </Sheet>
+
+      <Fab label="Add exercise" onClick={openSheet} offset="cta">
+        <PlusIcon />
+      </Fab>
 
       <div className="bottom-cta">
         {!sheetOpen && !editOpen && error ? <ErrorText>{error}</ErrorText> : null}

@@ -5,9 +5,10 @@ import { Button } from '@/components/ui'
 import { LogOutIcon } from '@/components/icons'
 import { formatDate } from '@/lib/format'
 
-// Full-screen account view (native pattern): the avatar in the nav bar pushes
-// here instead of opening a dropdown. Identity up top, account details in a
-// grouped inset list, and logout as the destructive action at the bottom.
+// Full-screen account view (native pattern): reached from the Profile tab in
+// the bottom navigation bar (PRD 0005), not a header control. Identity up top,
+// account details in a grouped inset list, and logout as the destructive
+// action at the bottom.
 export function ProfilePage() {
   const { user, logout } = useAuth()
 
@@ -18,7 +19,7 @@ export function ProfilePage() {
   const name = user.display_name || user.email
 
   return (
-    <Layout title="Profile" back="/" backLabel="Workouts" showProfile={false}>
+    <Layout title="Profile" bottomNav>
       <div className="profile-head">
         <Avatar name={name} size="lg" />
         <div className="profile-name">{user.display_name || 'Athlete'}</div>

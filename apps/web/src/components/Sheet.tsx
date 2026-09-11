@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 // Exit animation length — keep in sync with the .sheet transition in styles.css
@@ -24,14 +24,12 @@ export function Sheet({
   const [visible, setVisible] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
 
-  // Drive the enter/exit transitions: mount immediately on open then flip the
-  // `is-open` class on the next frame; on close, drop the class and unmount
-  // once the exit animation has run.
+  // Drive the mount/unmount lifecycle: mount immediately on open; on close drop
+  // the `is-open` class and unmount once the exit animation has run.
   useEffect(() => {
     if (open) {
       setMounted(true)
-      const raf = requestAnimationFrame(() => setVisible(true))
-      return () => cancelAnimationFrame(raf)
+      return undefined
     }
     if (mounted) {
       setVisible(false)
@@ -40,6 +38,22 @@ export function Sheet({
     }
     return undefined
   }, [open, mounted])
+
+  // Flip on the `is-open` class to run the enter transition. The panel mounts
+  // off-screen (translateY(100%)); before adding `is-open` we force a synchronous
+  // reflow by reading the panel's layout, so the browser commits that starting
+  // transform. Without this the freshly-inserted node's initial style is never
+  // painted, so it snaps straight to the open position — the sheet pops in with
+  // no slide-up (only the close slide-down, whose start value is already
+  // committed, animated). A layout effect runs after mount and before paint, so
+  // the enter animates without waiting an extra frame (an added frame delays the
+  // sheet's autofocus and races user interactions).
+  useLayoutEffect(() => {
+    if (open && mounted && !visible && panelRef.current) {
+      void panelRef.current.offsetHeight // force reflow: commit the off-screen start
+      setVisible(true)
+    }
+  }, [open, mounted, visible])
 
   // While mounted: close on Escape and lock background scroll.
   useEffect(() => {

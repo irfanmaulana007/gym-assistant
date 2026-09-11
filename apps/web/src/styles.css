@@ -48,6 +48,7 @@
   /* Layout. */
   --max-width: 480px;
   --header-h: 52px;
+  --bottom-nav-h: 58px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 
@@ -202,6 +203,77 @@ h1, h2, h3, p { margin: 0; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ---------- Bottom tab bar (native, Instagram-style) ---------- */
+.bottom-nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: stretch;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-top: 1px solid var(--border);
+  padding-bottom: var(--safe-bottom);
+}
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: var(--bottom-nav-h);
+  padding: var(--sp-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.bottom-nav-item svg { width: 24px; height: 24px; }
+.bottom-nav-item.is-active { color: var(--primary); }
+.bottom-nav-item:active { color: var(--text); }
+
+/* ---------- Floating action button ---------- */
+.fab {
+  position: fixed;
+  z-index: 30;
+  /* Pin to the right edge of the centered app shell, not the raw viewport. */
+  right: max(var(--sp-4), calc(50% - var(--max-width) / 2 + var(--sp-4)));
+  bottom: calc(var(--sp-5) + var(--safe-bottom));
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-pill);
+  border: 0;
+  background: var(--primary);
+  color: var(--primary-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(47, 212, 119, 0.35), var(--shadow-1);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.fab svg { width: 26px; height: 26px; }
+.fab:active { transform: scale(0.92); background: var(--primary-press); }
+/* Lift clear of the bottom tab bar. */
+.fab--nav { bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + var(--sp-4)); }
+/* Lift clear of the sticky "Start workout" bottom CTA. */
+.fab--cta { bottom: calc(88px + var(--safe-bottom)); }
+
+/* Right-aligned inline actions row (e.g. an Edit button in a detail body). */
+.detail-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  justify-content: flex-end;
 }
 
 /* ---------- Main area ---------- */

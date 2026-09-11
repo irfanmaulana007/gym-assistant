@@ -1,4 +1,4 @@
-# PRD 0005 — Exercise Catalog (Master Data)
+# PRD 0006 — Exercise Catalog (Master Data)
 
 | Field | Value |
 |-------|-------|
@@ -50,7 +50,7 @@ enum (mirrored in `pkg/vocab` and `web/src/types/api.ts`). What is missing is th
 
 **In scope:**
 
-- **api** — a new global `exercise_catalog` table, seeded (migration `0005`) with a
+- **api** — a new global `exercise_catalog` table, seeded (migration `0002`) with a
   focused starter set (~40–60 well-known movements), each with `primary_muscle_group`,
   `secondary_muscle_groups[]`, and a `default_measurement_type`.
 - **api** — a read-only, auth-required **list endpoint** `GET /api/v1/exercise-catalog`
