@@ -18,6 +18,7 @@ test('create routine, add exercise, run a session, see summary', async ({ page }
   await page.getByRole('button', { name: /create account/i }).click()
 
   // Create a routine (the form opens in a modal/bottom-sheet).
+  await page.getByRole('link', { name: 'Workout' }).click()
   await page.getByRole('button', { name: /new workout day/i }).click()
   await page.getByLabel('Workout day name').fill('Push Day')
   await page.getByRole('button', { name: /add workout day/i }).click()
@@ -32,7 +33,7 @@ test('create routine, add exercise, run a session, see summary', async ({ page }
 
   // Start the workout.
   await page.getByRole('button', { name: /start workout/i }).click()
-  await expect(page.getByText(/active workout/i)).toBeVisible()
+  await expect(page.getByRole('button', { name: /stop/i })).toBeVisible()
 
   // Log a set: 60kg × 8.
   await page.getByLabel('Bench Press weight').fill('60')
@@ -61,6 +62,7 @@ test("shows the previous session's weight as the target to beat", async ({ page 
   await page.getByRole('button', { name: /create account/i }).click()
 
   // Create a routine and add an exercise.
+  await page.getByRole('link', { name: 'Workout' }).click()
   await page.getByRole('button', { name: /new workout day/i }).click()
   await page.getByLabel('Workout day name').fill('Push Day')
   await page.getByRole('button', { name: /add workout day/i }).click()
@@ -73,7 +75,7 @@ test("shows the previous session's weight as the target to beat", async ({ page 
 
   // First session: log 60kg × 8 and save it.
   await page.getByRole('button', { name: /start workout/i }).click()
-  await expect(page.getByText(/active workout/i)).toBeVisible()
+  await expect(page.getByRole('button', { name: /stop/i })).toBeVisible()
   await page.getByLabel('Bench Press weight').fill('60')
   await page.getByLabel('Bench Press reps').fill('8')
   await page.getByRole('button', { name: /^log$/i }).click()
@@ -82,14 +84,15 @@ test("shows the previous session's weight as the target to beat", async ({ page 
   await page.getByRole('button', { name: /save workout/i }).click()
   await expect(page.getByText(/workout complete/i)).toBeVisible()
 
-  // Back on the routine, the exercise row shows the last set as the target.
-  await page.goto('/')
+  // Back on the workout list (via the summary's Done button), the exercise row
+  // shows the last set as the target.
+  await page.getByRole('link', { name: /done/i }).click()
   await page.getByText('Push Day').click()
   await expect(page.getByText(/Last 60kg × 8/)).toBeVisible()
 
   // A new session surfaces the same "weight to beat" on the logging card.
   await page.getByRole('button', { name: /start workout/i }).click()
-  await expect(page.getByText(/active workout/i)).toBeVisible()
+  await expect(page.getByRole('button', { name: /stop/i })).toBeVisible()
   await expect(page.getByText(/Last time 60kg × 8/)).toBeVisible()
 })
 
@@ -102,6 +105,7 @@ test('stop then discard abandons the session and redirects home', async ({ page 
   await page.getByLabel('Password').fill('supersecret1')
   await page.getByRole('button', { name: /create account/i }).click()
 
+  await page.getByRole('link', { name: 'Workout' }).click()
   await page.getByRole('button', { name: /new workout day/i }).click()
   await page.getByLabel('Workout day name').fill('Leg Day')
   await page.getByRole('button', { name: /add workout day/i }).click()
@@ -114,12 +118,12 @@ test('stop then discard abandons the session and redirects home', async ({ page 
   await expect(page.getByText('Squat')).toBeVisible()
 
   await page.getByRole('button', { name: /start workout/i }).click()
-  await expect(page.getByText(/active workout/i)).toBeVisible()
+  await expect(page.getByRole('button', { name: /stop/i })).toBeVisible()
 
   // Stop → Keep going leaves the workout active (accidental-tap guard).
   await page.getByRole('button', { name: /stop/i }).click()
   await page.getByRole('button', { name: /keep going/i }).click()
-  await expect(page.getByText(/active workout/i)).toBeVisible()
+  await expect(page.getByRole('button', { name: /stop/i })).toBeVisible()
 
   // Stop → Discard abandons it and sends the user home — a discarded workout
   // has nothing to summarize, so it must NOT show the "Workout complete" screen.

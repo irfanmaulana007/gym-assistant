@@ -16,6 +16,7 @@ test('exercise detail shows Info/Progress/History tabs', async ({ page }) => {
   await page.getByRole('button', { name: /create account/i }).click()
 
   // Create a routine and open it.
+  await page.getByRole('link', { name: 'Workout' }).click()
   await page.getByRole('button', { name: /new workout day/i }).click()
   await page.getByLabel('Workout day name').fill('Push Day')
   await page.getByRole('button', { name: /add workout day/i }).click()

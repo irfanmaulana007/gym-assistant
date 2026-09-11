@@ -15,7 +15,9 @@ test('edit and delete a routine and exercise from their detail pages', async ({ 
   await page.getByLabel('Password').fill('supersecret1')
   await page.getByRole('button', { name: /create account/i }).click()
 
-  // Create a routine and open its detail page.
+  // Create a routine and open its detail page (register lands on Progress; open
+  // the Workout tab client-side).
+  await page.getByRole('link', { name: 'Workout' }).click()
   await page.getByRole('button', { name: /new workout day/i }).click()
   await page.getByLabel('Workout day name').fill('Push Day')
   await page.getByRole('button', { name: /add workout day/i }).click()
@@ -45,9 +47,10 @@ test('edit and delete a routine and exercise from their detail pages', async ({ 
   await page.getByLabel('Reps').fill('10')
   await page.getByRole('button', { name: /save changes/i }).click()
 
-  // Back on the routine, the exercise row reflects the new target.
+  // Back on the routine, the exercise row reflects the new target (custom
+  // exercises default to 3 sets, so editing reps to 10 gives 3×10).
   await page.getByRole('button', { name: 'Back' }).click()
-  await expect(page.getByText('4×10')).toBeVisible()
+  await expect(page.getByText('3×10')).toBeVisible()
 
   // Delete the exercise from its detail page → back on the routine.
   await page.getByText('Bench Press').click()

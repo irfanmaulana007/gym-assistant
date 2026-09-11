@@ -10,7 +10,7 @@ import { ChevronRight, PlusIcon } from '@/components/icons'
 import { useAuth } from '@/lib/auth'
 import { ApiError } from '@/api/client'
 
-export function RoutinesListPage() {
+export function WorkoutPage() {
   const qc = useQueryClient()
   const { user } = useAuth()
   const { data: routines, isLoading, isError } = useQuery({
@@ -55,7 +55,7 @@ export function RoutinesListPage() {
   )
 
   return (
-    <Layout title="Workouts" intro={intro} bottomNav>
+    <Layout title="Workout" intro={intro} bottomNav>
       {isLoading ? <Spinner /> : null}
       {isError ? <ErrorText>Could not load your routines.</ErrorText> : null}
 
