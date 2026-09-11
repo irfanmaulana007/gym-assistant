@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { routinesApi } from '@/api/routines'
 import { Layout } from '@/components/Layout'
 import { Sheet } from '@/components/Sheet'
+import { Fab } from '@/components/Fab'
 import { Button, Field, ErrorText, Spinner } from '@/components/ui'
 import { ChevronRight, PlusIcon } from '@/components/icons'
 import { useAuth } from '@/lib/auth'
@@ -53,14 +54,8 @@ export function RoutinesListPage() {
     </div>
   )
 
-  const addAction = (
-    <button type="button" className="icon-btn" aria-label="New workout day" onClick={openSheet}>
-      <PlusIcon />
-    </button>
-  )
-
   return (
-    <Layout title="Workouts" intro={intro} action={addAction}>
+    <Layout title="Workouts" intro={intro} bottomNav>
       {isLoading ? <Spinner /> : null}
       {isError ? <ErrorText>Could not load your routines.</ErrorText> : null}
 
@@ -112,6 +107,10 @@ export function RoutinesListPage() {
           </Button>
         </form>
       </Sheet>
+
+      <Fab label="New workout day" onClick={openSheet} offset="nav">
+        <PlusIcon />
+      </Fab>
     </Layout>
   )
 }

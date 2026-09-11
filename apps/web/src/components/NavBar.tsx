@@ -1,24 +1,22 @@
-import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft } from './icons'
-import { ProfileButton } from './ProfileButton'
 
 export type BackTarget = string | number | boolean
 
-// Native-style top nav bar: back chevron on the left, centered title, and the
-// account avatar (plus any page action) on the right.
+// Native-style top nav bar: back chevron on the left and a centered title —
+// nothing on the right. Top-level navigation (Home/Profile) lives in the bottom
+// tab bar, and per-screen actions live in the page body (FAB / inline). Keeping
+// the header clean is a repo rule — see .claude/rules/native-mobile-ux.md and
+// PRD 0005. The empty right column preserves the grid so the title stays
+// optically centered.
 export function NavBar({
   title,
   back,
   backLabel = 'Back',
-  action,
-  showProfile = true,
 }: {
   title: string
   back?: BackTarget
   backLabel?: string
-  action?: ReactNode
-  showProfile?: boolean
 }) {
   const navigate = useNavigate()
 
@@ -41,10 +39,7 @@ export function NavBar({
       <div className="navbar-center">
         <h1 className="navbar-title">{title}</h1>
       </div>
-      <div className="navbar-right">
-        {action}
-        {showProfile ? <ProfileButton /> : null}
-      </div>
+      <div className="navbar-right" aria-hidden />
     </header>
   )
 }
