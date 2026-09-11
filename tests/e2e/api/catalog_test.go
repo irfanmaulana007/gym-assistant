@@ -76,6 +76,23 @@ func TestExerciseCatalog_List_E2E(t *testing.T) {
 		}
 	}
 
+	// Entries added in migration 0003 are present with their mapped primary
+	// muscle group (no adductor/abductor enum — Hip Adductor→quads,
+	// Hip Abductor→glutes).
+	wantPrimary := map[string]string{
+		"Hack Squat":    "quads",
+		"Incline Walk":  "cardio",
+		"Stair Climber": "cardio",
+		"Hip Adductor":  "quads",
+		"Hip Abductor":  "glutes",
+	}
+	for name, primary := range wantPrimary {
+		e := h.findCatalog(t, token, name)
+		if e.PrimaryMuscleGroup != primary {
+			t.Errorf("catalog %q primary = %q, want %q", name, e.PrimaryMuscleGroup, primary)
+		}
+	}
+
 	// Bad muscle-group filter is a validation error.
 	bad := h.do(t, http.MethodGet, "/api/v1/exercise-catalog?muscle_group=eyebrows", token, nil)
 	if bad.Status != http.StatusUnprocessableEntity {
