@@ -32,8 +32,8 @@ interface TargetsForm {
 
 const DEFAULT_TARGETS: TargetsForm = {
   measurement_type: 'weight_reps',
-  target_sets: 4,
-  target_reps: 8,
+  target_sets: 3,
+  target_reps: 12,
   target_minutes: 30,
 }
 

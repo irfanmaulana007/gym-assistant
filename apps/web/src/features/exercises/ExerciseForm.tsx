@@ -13,8 +13,8 @@ export const EMPTY_EXERCISE_FORM: ExerciseInput = {
   name: '',
   measurement_type: 'weight_reps',
   primary_muscle_group: 'chest',
-  target_sets: 4,
-  target_reps: 8,
+  target_sets: 3,
+  target_reps: 12,
 }
 
 // Map a persisted exercise back into the editable form shape.

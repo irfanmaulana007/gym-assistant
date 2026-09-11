@@ -31,13 +31,15 @@ test('add a catalog exercise (targets only) and a custom exercise', async ({ pag
   await page.getByRole('button', { name: 'Add Barbell Bench Press', exact: true }).click()
   await expect(page.getByRole('button', { name: /back to catalog/i })).toBeVisible()
 
-  // Save with the default targets (4 × 8). No name/muscle inputs to fill.
+  // Save with the default targets (3 × 12). No name/muscle inputs to fill.
   await page.getByRole('button', { name: 'Add Barbell Bench Press', exact: true }).click()
 
-  // The exercise appears named from the catalog, with its resolved chest badge.
+  // The exercise appears named from the catalog, with its resolved chest badge
+  // and the default 3×12 target.
   const benchRow = page.getByRole('link', { name: /Barbell Bench Press history/i })
   await expect(benchRow).toBeVisible()
   await expect(benchRow.getByText('Chest', { exact: true })).toBeVisible()
+  await expect(benchRow.getByText('3×12')).toBeVisible()
 
   // Now add a custom exercise via the escape hatch.
   await page.getByRole('button', { name: 'Add exercise', exact: true }).click()

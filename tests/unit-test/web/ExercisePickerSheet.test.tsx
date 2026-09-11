@@ -114,8 +114,8 @@ describe('ExercisePickerSheet', () => {
     await waitFor(() => expect(posts.length).toBe(1))
     const { body } = posts[0]
     expect(body.catalog_exercise_id).toBe('c-bench')
-    expect(body.target_sets).toBe(4)
-    expect(body.target_reps).toBe(8)
+    expect(body.target_sets).toBe(3)
+    expect(body.target_reps).toBe(12)
     expect(body).not.toHaveProperty('primary_muscle_group')
     expect(body).not.toHaveProperty('secondary_muscle_groups')
     expect(body).not.toHaveProperty('name')
