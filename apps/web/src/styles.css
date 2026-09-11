@@ -487,6 +487,47 @@ h1, h2, h3, p { margin: 0; }
 }
 .chip-active { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
 
+/* iOS-style segmented control for switching between in-page views (tabs). */
+.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+}
+.segmented > button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.segmented > button:active { transform: scale(0.98); }
+.segmented > button.segmented-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+
+/* Label/value rows inside a grouped inset list (native settings-style detail). */
+.detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+}
+.detail-row > .detail-label { color: var(--text-muted); font-size: 15px; }
+.detail-row > .detail-value { font-weight: 600; text-align: right; }
+
 /* Inline "back to previous step" link inside a multi-step sheet. */
 .link-back {
   align-self: flex-start;

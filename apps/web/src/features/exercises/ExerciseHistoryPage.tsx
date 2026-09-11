@@ -4,11 +4,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { exercisesApi, type ExerciseInput } from '@/api/routines'
 import { Layout } from '@/components/Layout'
 import { Sheet } from '@/components/Sheet'
+import { Segmented } from '@/components/Segmented'
 import { Button, ErrorText, Spinner } from '@/components/ui'
 import { PencilIcon } from '@/components/icons'
-import { EMPTY_EXERCISE_FORM, ExerciseFormFields, exerciseToInput, normalizeExerciseInput } from './ExerciseForm'
+import { EMPTY_EXERCISE_FORM, ExerciseFormFields, MEASUREMENT_LABELS, exerciseToInput, normalizeExerciseInput } from './ExerciseForm'
 import { muscleGroupLabel } from '@/types/api'
-import { formatDate } from '@/lib/format'
+import { describeTarget, formatDate } from '@/lib/format'
 import { ApiError } from '@/api/client'
 
 const TREND_LABEL: Record<string, string> = {
@@ -17,6 +18,14 @@ const TREND_LABEL: Record<string, string> = {
   flat: '▬ Holding',
   none: 'Not enough data yet',
 }
+
+type DetailTab = 'info' | 'progress' | 'history'
+
+const TABS: { value: DetailTab; label: string }[] = [
+  { value: 'info', label: 'Info' },
+  { value: 'progress', label: 'Progress' },
+  { value: 'history', label: 'History' },
+]
 
 export function ExerciseHistoryPage() {
   const { id = '' } = useParams()
@@ -28,6 +37,7 @@ export function ExerciseHistoryPage() {
     queryFn: () => exercisesApi.history(id),
   })
 
+  const [tab, setTab] = useState<DetailTab>('info')
   const [editOpen, setEditOpen] = useState(false)
   const [form, setForm] = useState<ExerciseInput>(EMPTY_EXERCISE_FORM)
   const [linked, setLinked] = useState(false)
@@ -109,48 +119,102 @@ export function ExerciseHistoryPage() {
         </Button>
       </div>
 
-      <div className="card row-between">
-        <div>
-          <div className="section-label" style={{ padding: 0 }}>Progression</div>
-          <strong style={{ fontSize: 18 }}>{TREND_LABEL[trend.direction] ?? trend.direction}</strong>
-        </div>
-        {showChange ? (
-          <div className="timer" style={{ color: trend.direction === 'up' ? 'var(--primary)' : 'var(--danger)' }}>
-            {trend.change > 0 ? '+' : ''}
-            {trend.change} kg
-          </div>
-        ) : null}
-      </div>
+      <Segmented options={TABS} value={tab} onChange={setTab} ariaLabel="Exercise detail sections" />
 
-      {sessions.length === 0 ? (
-        <div className="empty">
-          <span className="emoji">📈</span>
-          No logged sessions yet.
-          <div className="small">Log this exercise in a workout to see your history.</div>
-        </div>
-      ) : (
-        <>
-          <div className="section-label">History</div>
-          <ul className="list">
-            {[...sessions].reverse().map((s) => (
-              <li key={s.session_id} className="list-item">
-                <div className="row-between">
-                  <span className="muted">{formatDate(s.performed_at)}</span>
-                  {s.top_set ? (
-                    <strong>
-                      {s.top_set.weight}
-                      {s.top_set.weight_unit} × {s.top_set.reps}
-                    </strong>
-                  ) : (
-                    <span className="muted">—</span>
-                  )}
-                </div>
-                <div className="row-sub">Volume {s.total_volume.toLocaleString()} · {s.sets.length} sets</div>
-              </li>
-            ))}
+      {tab === 'info' ? (
+        <div className="stack" role="tabpanel" aria-label="Info">
+          <div className="section-label">Muscles worked</div>
+          <div className="card stack">
+            <div className="row wrap" style={{ gap: 'var(--sp-2)' }}>
+              <span className="badge badge-active">{muscleGroupLabel(exercise.primary_muscle_group)}</span>
+              {exercise.secondary_muscle_groups.map((g) => (
+                <span key={g} className="badge">{muscleGroupLabel(g)}</span>
+              ))}
+            </div>
+            <p className="muted small" style={{ margin: 0 }}>
+              Primary
+              {exercise.secondary_muscle_groups.length > 0 ? ' · secondary' : ''}
+            </p>
+          </div>
+
+          <div className="section-label">Details</div>
+          <ul className="list-grouped">
+            <li className="detail-row">
+              <span className="detail-label">Measurement</span>
+              <span className="detail-value">{MEASUREMENT_LABELS[exercise.measurement_type]}</span>
+            </li>
+            <li className="detail-row">
+              <span className="detail-label">Target</span>
+              <span className="detail-value">{describeTarget(exercise)}</span>
+            </li>
+            <li className="detail-row">
+              <span className="detail-label">Source</span>
+              <span className="detail-value">
+                {exercise.catalog_exercise_id != null
+                  ? `Catalog${exercise.catalog_name ? `: ${exercise.catalog_name}` : ''}`
+                  : 'Custom'}
+              </span>
+            </li>
           </ul>
-        </>
-      )}
+
+          {exercise.notes.trim() ? (
+            <>
+              <div className="section-label">Notes</div>
+              <div className="card">
+                <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{exercise.notes}</p>
+              </div>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      {tab === 'progress' ? (
+        <div role="tabpanel" aria-label="Progress">
+          <div className="card row-between">
+            <div>
+              <div className="section-label" style={{ padding: 0 }}>Progression</div>
+              <strong style={{ fontSize: 18 }}>{TREND_LABEL[trend.direction] ?? trend.direction}</strong>
+            </div>
+            {showChange ? (
+              <div className="timer" style={{ color: trend.direction === 'up' ? 'var(--primary)' : 'var(--danger)' }}>
+                {trend.change > 0 ? '+' : ''}
+                {trend.change} kg
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {tab === 'history' ? (
+        <div role="tabpanel" aria-label="History">
+          {sessions.length === 0 ? (
+            <div className="empty">
+              <span className="emoji">📈</span>
+              No logged sessions yet.
+              <div className="small">Log this exercise in a workout to see your history.</div>
+            </div>
+          ) : (
+            <ul className="list">
+              {[...sessions].reverse().map((s) => (
+                <li key={s.session_id} className="list-item">
+                  <div className="row-between">
+                    <span className="muted">{formatDate(s.performed_at)}</span>
+                    {s.top_set ? (
+                      <strong>
+                        {s.top_set.weight}
+                        {s.top_set.weight_unit} × {s.top_set.reps}
+                      </strong>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </div>
+                  <div className="row-sub">Volume {s.total_volume.toLocaleString()} · {s.sets.length} sets</div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
 
       <Sheet open={editOpen} onClose={() => setEditOpen(false)} title="Edit exercise">
         <form className="stack" onSubmit={onSave}>
