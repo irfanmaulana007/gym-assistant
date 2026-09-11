@@ -74,7 +74,7 @@ export function ExerciseHistoryPage() {
         qc.invalidateQueries({ queryKey: ['routine', routineId] })
         navigate(`/routines/${routineId}`)
       } else {
-        navigate('/')
+        navigate('/workout')
       }
     },
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not delete exercise'),

@@ -65,10 +65,10 @@ function renderPage(fetchMock: ReturnType<typeof vi.fn>) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/progress']}>
+      <MemoryRouter initialEntries={['/']}>
         <AuthProvider>
           <Routes>
-            <Route path="/progress" element={<DashboardPage />} />
+            <Route path="/" element={<DashboardPage />} />
             <Route path="/exercises/:id/history" element={<div>History for exercise</div>} />
           </Routes>
         </AuthProvider>
@@ -88,14 +88,24 @@ describe('DashboardPage', () => {
     localStorage.clear()
   })
 
-  it('renders summary tiles and cards from the payload', async () => {
+  it('renders four overview tiles with informational values and the cards', async () => {
     const fetchMock = vi.fn(async () => jsonResponse(200, FULL_DASHBOARD))
     renderPage(fetchMock)
 
-    // Summary tiles.
-    expect(await screen.findByText('8')).toBeInTheDocument() // workouts
-    expect(screen.getByText('320')).toBeInTheDocument() // training minutes
-    expect(screen.getByText('12k')).toBeInTheDocument() // compact volume
+    // Four overview tiles, each with a proper label + informational value.
+    expect(await screen.findByText('Workouts')).toBeInTheDocument()
+    expect(screen.getByText('Training time')).toBeInTheDocument()
+    expect(screen.getByText('Total volume')).toBeInTheDocument()
+    expect(screen.getByText('Current streak')).toBeInTheDocument()
+
+    // Values carry units / are self-describing, not bare numbers.
+    expect(screen.getByText('8')).toBeInTheDocument() // workouts count
+    expect(screen.getByText('5h 20m')).toBeInTheDocument() // 320 training minutes
+    expect(screen.getByText('12k')).toBeInTheDocument() // compact volume (kg unit alongside)
+    expect(screen.getByText('kg')).toBeInTheDocument() // volume unit label
+
+    // The dropped "days since last" tile is gone (kept to 4 for a clean 2×2).
+    expect(screen.queryByText(/days since last/i)).not.toBeInTheDocument()
 
     // Progress signals + PR + muscle balance.
     expect(screen.getByText('Bench Press')).toBeInTheDocument()

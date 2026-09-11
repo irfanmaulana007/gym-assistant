@@ -34,28 +34,44 @@ export function ActivityCalendar({ days, from }: ActivityCalendarProps) {
   const totalSessions = days.reduce((sum, d) => sum + d.count, 0)
 
   return (
-    <div className="chart-scroll">
-      <div className="calendar" role="img" aria-label={`${totalSessions} sessions across the window`}>
-        {weeks.map((week) => (
-          <div className="calendar-week" key={week[0].toISOString()}>
-            {week.map((day) => {
-              const key = isoDate(day)
-              const inRange = day <= today
-              const count = counts.get(key) ?? 0
-              return (
-                <div
-                  key={key}
-                  className={`calendar-cell tier-${tier(count)}${inRange ? '' : ' is-future'}`}
-                  title={`${key}: ${count} session${count === 1 ? '' : 's'}`}
-                />
-              )
-            })}
-          </div>
+    <div className="calendar-wrap">
+      {/* Fixed weekday labels so a session's day is readable at a glance. */}
+      <div className="calendar-weekdays" aria-hidden>
+        {WEEKDAYS.map((d) => (
+          <span key={d}>{d}</span>
         ))}
+      </div>
+      <div className="chart-scroll">
+        <div className="calendar" role="img" aria-label={`${totalSessions} sessions across the window`}>
+          {weeks.map((week) => (
+            <div className="calendar-week" key={week[0].toISOString()}>
+              {week.map((day) => {
+                const key = isoDate(day)
+                const inRange = day <= today
+                const count = counts.get(key) ?? 0
+                const label = day.toLocaleDateString(undefined, {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                })
+                return (
+                  <div
+                    key={key}
+                    className={`calendar-cell tier-${tier(count)}${inRange ? '' : ' is-future'}`}
+                    title={`${label} · ${count} session${count === 1 ? '' : 's'}`}
+                  />
+                )
+              })}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
 }
+
+// Monday-first weekday labels aligned to the calendar rows.
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 function tier(count: number): number {
   if (count <= 0) return 0

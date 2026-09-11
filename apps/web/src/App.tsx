@@ -5,7 +5,7 @@ import { queryClient } from '@/lib/queryClient'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { RegisterPage } from '@/features/auth/RegisterPage'
-import { RoutinesListPage } from '@/features/routines/RoutinesListPage'
+import { WorkoutPage } from '@/features/routines/WorkoutPage'
 import { RoutineDetailPage } from '@/features/routines/RoutineDetailPage'
 import { ActiveSessionPage } from '@/features/sessions/ActiveSessionPage'
 import { ExerciseHistoryPage } from '@/features/exercises/ExerciseHistoryPage'
@@ -24,11 +24,13 @@ export function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route path="/" element={protectedElement(<RoutinesListPage />)} />
+            <Route path="/" element={protectedElement(<DashboardPage />)} />
+            <Route path="/workout" element={protectedElement(<WorkoutPage />)} />
             <Route path="/routines/:id" element={protectedElement(<RoutineDetailPage />)} />
             <Route path="/sessions/:id" element={protectedElement(<ActiveSessionPage />)} />
             <Route path="/exercises/:id/history" element={protectedElement(<ExerciseHistoryPage />)} />
-            <Route path="/progress" element={protectedElement(<DashboardPage />)} />
+            {/* Progress moved to `/`; keep the old path working for bookmarks. */}
+            <Route path="/progress" element={<Navigate to="/" replace />} />
             <Route path="/profile" element={protectedElement(<ProfilePage />)} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

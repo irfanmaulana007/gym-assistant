@@ -61,7 +61,7 @@ export function RoutineDetailPage() {
     mutationFn: () => routinesApi.remove(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['routines'] })
-      navigate('/')
+      navigate('/workout')
     },
     onError: (e) => setEditError(e instanceof ApiError ? e.message : 'Could not delete workout day'),
   })
@@ -82,13 +82,13 @@ export function RoutineDetailPage() {
     updateMut.mutate({ name: editName.trim(), notes: editNotes.trim() })
   }
 
-  if (isLoading) return <Layout title="Loading…" back="/"><Spinner /></Layout>
-  if (isError || !routine) return <Layout title="Not found" back="/"><ErrorText>Routine not found.</ErrorText></Layout>
+  if (isLoading) return <Layout title="Loading…" back="/workout"><Spinner /></Layout>
+  if (isError || !routine) return <Layout title="Not found" back="/workout"><ErrorText>Routine not found.</ErrorText></Layout>
 
   const exercises = routine.exercises ?? []
 
   return (
-    <Layout title={routine.name} back="/" backLabel="Workouts">
+    <Layout title={routine.name} back="/workout" backLabel="Workout">
       <div className="detail-actions">
         {routine.notes ? <p className="muted grow">{routine.notes}</p> : null}
         <Button type="button" size="sm" variant="ghost" aria-label="Edit workout day" onClick={openEdit}>
