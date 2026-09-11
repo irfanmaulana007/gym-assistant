@@ -10,6 +10,7 @@ import { RoutineDetailPage } from '@/features/routines/RoutineDetailPage'
 import { ActiveSessionPage } from '@/features/sessions/ActiveSessionPage'
 import { ExerciseHistoryPage } from '@/features/exercises/ExerciseHistoryPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
+import { DashboardPage } from '@/features/progress/DashboardPage'
 
 function protectedElement(el: React.ReactNode) {
   return <ProtectedRoute>{el}</ProtectedRoute>
@@ -27,6 +28,7 @@ export function App() {
             <Route path="/routines/:id" element={protectedElement(<RoutineDetailPage />)} />
             <Route path="/sessions/:id" element={protectedElement(<ActiveSessionPage />)} />
             <Route path="/exercises/:id/history" element={protectedElement(<ExerciseHistoryPage />)} />
+            <Route path="/progress" element={protectedElement(<DashboardPage />)} />
             <Route path="/profile" element={protectedElement(<ProfilePage />)} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

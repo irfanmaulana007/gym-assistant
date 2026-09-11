@@ -15,13 +15,14 @@ import (
 // Deps holds the dependencies routes are built from. Fields are added as later
 // feature PRs introduce their handlers.
 type Deps struct {
-	Health   *handler.HealthHandler
-	Auth     *handler.AuthHandler
-	Routine  *handler.RoutineHandler
-	Exercise *handler.ExerciseHandler
-	Catalog  *handler.CatalogHandler
-	Session  *handler.SessionHandler
-	Verifier middleware.TokenVerifier
+	Health    *handler.HealthHandler
+	Auth      *handler.AuthHandler
+	Routine   *handler.RoutineHandler
+	Exercise  *handler.ExerciseHandler
+	Catalog   *handler.CatalogHandler
+	Session   *handler.SessionHandler
+	Analytics *handler.AnalyticsHandler
+	Verifier  middleware.TokenVerifier
 	// AllowedOrigins are the browser origins permitted by CORS.
 	AllowedOrigins []string
 }
@@ -76,6 +77,16 @@ func New(deps Deps) http.Handler {
 
 			if deps.Catalog != nil {
 				r.Get("/exercise-catalog", deps.Catalog.List)
+			}
+
+			if deps.Analytics != nil {
+				r.Get("/analytics/dashboard", deps.Analytics.Dashboard)
+				r.Get("/analytics/summary", deps.Analytics.Summary)
+				r.Get("/analytics/volume", deps.Analytics.Volume)
+				r.Get("/analytics/muscle-groups", deps.Analytics.MuscleGroups)
+				r.Get("/analytics/consistency", deps.Analytics.Consistency)
+				r.Get("/analytics/records", deps.Analytics.Records)
+				r.Get("/analytics/exercise-trends", deps.Analytics.ExerciseTrends)
 			}
 
 			if deps.Session != nil {

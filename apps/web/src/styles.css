@@ -732,3 +732,44 @@ h1, h2, h3, p { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* --- Analytics dashboard (PRD 0007) --- */
+
+/* Stat-tile delta chip + streak unit. */
+.stat-unit { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.delta { font-size: 12px; font-weight: 700; }
+.delta-up { color: var(--primary); }
+.delta-down { color: var(--danger); }
+
+/* Horizontal scroll container so wide charts never break the page width. */
+.chart-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 calc(-1 * var(--sp-1)); padding: 0 var(--sp-1); }
+
+/* Volume bar chart. */
+.bar-chart { display: flex; align-items: flex-end; gap: var(--sp-2); min-height: 140px; }
+.bar-col { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); flex: 0 0 auto; width: 40px; }
+.bar-value { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.bar-track { display: flex; align-items: flex-end; height: 100px; width: 100%; }
+.bar-fill { width: 100%; min-height: 2px; background: var(--primary); border-radius: var(--radius-sm) var(--radius-sm) 0 0; transition: height var(--dur-base) var(--ease); }
+.bar-label { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
+
+/* Muscle-group balance bars. */
+.muscle-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+.muscle-bar-row { display: flex; flex-direction: column; gap: var(--sp-1); }
+.muscle-bar-track { height: 8px; background: var(--surface-2); border-radius: var(--radius-pill); overflow: hidden; }
+.muscle-bar-fill { height: 100%; background: var(--primary); border-radius: var(--radius-pill); transition: width var(--dur-base) var(--ease); }
+.muscle-bar-fill.is-undertrained { background: var(--danger); }
+.badge-warn { background: var(--danger-soft); color: var(--danger); }
+
+/* Trend/PR row leading mark. */
+.trend-mark { flex: 0 0 auto; width: 20px; text-align: center; }
+.trend-up { color: var(--primary); }
+.trend-flat { color: var(--danger); }
+
+/* Activity calendar heatmap. */
+.calendar { display: flex; gap: 4px; }
+.calendar-week { display: flex; flex-direction: column; gap: 4px; }
+.calendar-cell { width: 14px; height: 14px; border-radius: 3px; background: var(--surface-2); }
+.calendar-cell.tier-1 { background: var(--primary-soft); }
+.calendar-cell.tier-2 { background: color-mix(in srgb, var(--primary) 55%, transparent); }
+.calendar-cell.tier-3 { background: var(--primary); }
+.calendar-cell.is-future { opacity: 0.25; }
