@@ -19,6 +19,7 @@ type Deps struct {
 	Auth     *handler.AuthHandler
 	Routine  *handler.RoutineHandler
 	Exercise *handler.ExerciseHandler
+	Catalog  *handler.CatalogHandler
 	Session  *handler.SessionHandler
 	Verifier middleware.TokenVerifier
 	// AllowedOrigins are the browser origins permitted by CORS.
@@ -71,6 +72,10 @@ func New(deps Deps) http.Handler {
 				r.Patch("/exercises/{id}", deps.Exercise.Update)
 				r.Delete("/exercises/{id}", deps.Exercise.Delete)
 				r.Get("/exercises/{id}/history", deps.Exercise.History)
+			}
+
+			if deps.Catalog != nil {
+				r.Get("/exercise-catalog", deps.Catalog.List)
 			}
 
 			if deps.Session != nil {

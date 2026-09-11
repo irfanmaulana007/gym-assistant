@@ -22,8 +22,10 @@ test('primary muscle group select is grouped by body area', async ({ page }) => 
   await page.getByRole('button', { name: /add workout day/i }).click()
   await page.getByText('Push Day').click()
 
-  // Open the add-exercise sheet, where the muscle-group select lives.
+  // Open the add-exercise sheet, then the "Custom exercise" free-text form
+  // where the muscle-group select lives (PRD 0006 leads with the catalog picker).
   await page.getByRole('button', { name: 'Add exercise', exact: true }).click()
+  await page.getByRole('button', { name: /custom exercise/i }).click()
 
   const select = page.getByLabel('Primary muscle group')
   await expect(select).toBeVisible()

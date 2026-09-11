@@ -23,18 +23,56 @@ type exerciseRepo interface {
 	History(ctx context.Context, userID, exerciseID string) ([]repository.HistoryRow, error)
 }
 
+// catalogReader reads shared catalog entries so create/update can resolve a
+// link's defaults (name, measurement type) and validate its existence.
+type catalogReader interface {
+	GetByID(ctx context.Context, id string) (*domain.CatalogExercise, error)
+}
+
 // ExerciseService implements exercise CRUD + reorder + derived history.
 type ExerciseService struct {
 	exercises exerciseRepo
+	catalog   catalogReader
 }
 
 // NewExerciseService builds an ExerciseService.
-func NewExerciseService(exercises exerciseRepo) *ExerciseService {
-	return &ExerciseService{exercises: exercises}
+func NewExerciseService(exercises exerciseRepo, catalog catalogReader) *ExerciseService {
+	return &ExerciseService{exercises: exercises, catalog: catalog}
 }
 
-// Create validates input and adds an exercise to a routine the user owns.
+// Create validates input and adds an exercise to a routine the user owns. When
+// the input links a catalog entry, muscle-group fields are ignored (resolved
+// from the catalog) and name/measurement default from the catalog (PRD §4.3).
 func (s *ExerciseService) Create(ctx context.Context, userID, routineID string, in repository.ExerciseInput) (*domain.Exercise, error) {
+	if in.CatalogExerciseID != nil {
+		cat, err := s.catalog.GetByID(ctx, *in.CatalogExerciseID)
+		if err != nil {
+			if errors.Is(err, repository.ErrNotFound) {
+				return nil, validationErr(map[string]any{"catalog_exercise_id": "unknown catalog exercise"})
+			}
+			return nil, err
+		}
+		// A catalog-linked exercise ignores any request muscle fields — the
+		// catalog is the source of truth.
+		in.PrimaryMuscleGroup = nil
+		in.SecondaryMuscleGroups = nil
+		if in.Name == nil || validate.Required("name", *in.Name) != "" {
+			in.Name = &cat.Name
+		}
+		if in.MeasurementType == nil {
+			mt := cat.DefaultMeasurementType
+			in.MeasurementType = &mt
+		}
+		if details := validateExercise(in); len(details) > 0 {
+			return nil, validationErr(details)
+		}
+		ex, err := s.exercises.Create(ctx, userID, routineID, in)
+		if err != nil {
+			return nil, notFoundOr(err, "routine not found")
+		}
+		return ex, nil
+	}
+
 	if in.Name == nil || validate.Required("name", *in.Name) != "" {
 		return nil, validationErr(map[string]any{"name": "name is required"})
 	}
@@ -48,10 +86,30 @@ func (s *ExerciseService) Create(ctx context.Context, userID, routineID string, 
 	return ex, nil
 }
 
-// Update validates and applies changes to an exercise the user owns.
+// Update validates and applies changes to an exercise the user owns. It may set
+// a catalog link or clear one (unlink → custom); clearing requires a
+// primary_muscle_group so the resolvable-muscle-group CHECK still holds.
 func (s *ExerciseService) Update(ctx context.Context, userID, id string, in repository.ExerciseInput) (*domain.Exercise, error) {
 	if in.Name != nil && validate.Required("name", *in.Name) != "" {
 		return nil, validationErr(map[string]any{"name": "name cannot be empty"})
+	}
+	if in.ClearCatalog {
+		if in.PrimaryMuscleGroup == nil || validate.Required("primary_muscle_group", *in.PrimaryMuscleGroup) != "" {
+			return nil, validationErr(map[string]any{
+				"primary_muscle_group": "a primary muscle group is required to unlink from the catalog",
+			})
+		}
+	}
+	if in.CatalogExerciseID != nil {
+		if _, err := s.catalog.GetByID(ctx, *in.CatalogExerciseID); err != nil {
+			if errors.Is(err, repository.ErrNotFound) {
+				return nil, validationErr(map[string]any{"catalog_exercise_id": "unknown catalog exercise"})
+			}
+			return nil, err
+		}
+		// Linking ignores request muscle fields (resolved from the catalog).
+		in.PrimaryMuscleGroup = nil
+		in.SecondaryMuscleGroups = nil
 	}
 	if details := validateExercise(in); len(details) > 0 {
 		return nil, validationErr(details)

@@ -1,14 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { exercisesApi, routinesApi, type ExerciseInput } from '@/api/routines'
+import { routinesApi } from '@/api/routines'
 import { sessionsApi } from '@/api/sessions'
 import { Layout } from '@/components/Layout'
 import { Sheet } from '@/components/Sheet'
 import { Fab } from '@/components/Fab'
 import { Button, ErrorText, Field, Spinner } from '@/components/ui'
 import { ChevronRight, PencilIcon, PlusIcon } from '@/components/icons'
-import { EMPTY_EXERCISE_FORM, ExerciseFormFields, normalizeExerciseInput } from '@/features/exercises/ExerciseForm'
+import { ExercisePickerSheet } from '@/features/exercises/ExercisePickerSheet'
 import { muscleGroupLabel } from '@/types/api'
 import { formatLastSet, formatTarget } from '@/lib/format'
 import { ApiError } from '@/api/client'
@@ -24,7 +24,6 @@ export function RoutineDetailPage() {
   })
 
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [form, setForm] = useState<ExerciseInput>(EMPTY_EXERCISE_FORM)
   const [error, setError] = useState('')
 
   const [editOpen, setEditOpen] = useState(false)
@@ -33,7 +32,6 @@ export function RoutineDetailPage() {
   const [editError, setEditError] = useState('')
 
   const openSheet = () => {
-    setForm(EMPTY_EXERCISE_FORM)
     setError('')
     setSheetOpen(true)
   }
@@ -48,16 +46,6 @@ export function RoutineDetailPage() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['routine', id] })
   }
-
-  const addMut = useMutation({
-    mutationFn: (input: ExerciseInput) => exercisesApi.create(id, input),
-    onSuccess: () => {
-      setForm(EMPTY_EXERCISE_FORM)
-      setSheetOpen(false)
-      invalidate()
-    },
-    onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not add exercise'),
-  })
 
   const updateMut = useMutation({
     mutationFn: (patch: { name: string; notes: string }) => routinesApi.update(id, patch),
@@ -83,16 +71,6 @@ export function RoutineDetailPage() {
     onSuccess: (session) => navigate(`/sessions/${session.id}`),
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not start session'),
   })
-
-  function onAdd(e: FormEvent) {
-    e.preventDefault()
-    setError('')
-    if (!form.name.trim()) {
-      setError('Exercise name is required')
-      return
-    }
-    addMut.mutate(normalizeExerciseInput(form))
-  }
 
   function onSaveRoutine(e: FormEvent) {
     e.preventDefault()
@@ -155,15 +133,12 @@ export function RoutineDetailPage() {
         </div>
       )}
 
-      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Add exercise">
-        <form className="stack" onSubmit={onAdd}>
-          <ExerciseFormFields value={form} onChange={setForm} />
-          <ErrorText>{error}</ErrorText>
-          <Button type="submit" variant="primary" block disabled={addMut.isPending}>
-            {addMut.isPending ? 'Adding…' : 'Save exercise'}
-          </Button>
-        </form>
-      </Sheet>
+      <ExercisePickerSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        routineId={id}
+        onAdded={invalidate}
+      />
 
       <Sheet open={editOpen} onClose={() => setEditOpen(false)} title="Edit workout day">
         <form className="stack" onSubmit={onSaveRoutine}>

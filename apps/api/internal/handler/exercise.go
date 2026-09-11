@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -12,6 +13,28 @@ import (
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/service"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/httpx"
 )
+
+// nullableString distinguishes an absent JSON key from an explicit null. This
+// lets the exercise endpoint tell "leave the catalog link unchanged" (key
+// absent) from "unlink" (key present and null) from "link to id" (a string).
+type nullableString struct {
+	Set   bool
+	Value *string
+}
+
+func (n *nullableString) UnmarshalJSON(b []byte) error {
+	n.Set = true
+	if string(b) == "null" {
+		n.Value = nil
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	n.Value = &s
+	return nil
+}
 
 type exerciseService interface {
 	Create(ctx context.Context, userID, routineID string, in repository.ExerciseInput) (*domain.Exercise, error)
@@ -46,10 +69,13 @@ type exerciseRequest struct {
 	SecondaryMuscleGroups []string       `json:"secondary_muscle_groups"`
 	DefaultMetadata       domain.JSONMap `json:"default_metadata"`
 	Notes                 *string        `json:"notes"`
+	// CatalogExerciseID links (a string id) or unlinks (explicit null) the
+	// exercise from a catalog entry; absence leaves the link unchanged.
+	CatalogExerciseID nullableString `json:"catalog_exercise_id"`
 }
 
 func (req exerciseRequest) toInput() repository.ExerciseInput {
-	return repository.ExerciseInput{
+	in := repository.ExerciseInput{
 		Name:                  req.Name,
 		MeasurementType:       req.MeasurementType,
 		TargetSets:            req.TargetSets,
@@ -63,6 +89,14 @@ func (req exerciseRequest) toInput() repository.ExerciseInput {
 		DefaultMetadata:       req.DefaultMetadata,
 		Notes:                 req.Notes,
 	}
+	if req.CatalogExerciseID.Set {
+		if req.CatalogExerciseID.Value != nil {
+			in.CatalogExerciseID = req.CatalogExerciseID.Value
+		} else {
+			in.ClearCatalog = true
+		}
+	}
+	return in
 }
 
 // Create adds an exercise to a routine.

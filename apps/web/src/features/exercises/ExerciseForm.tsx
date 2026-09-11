@@ -38,10 +38,28 @@ export function normalizeExerciseInput(form: ExerciseInput): ExerciseInput {
   const isDuration = form.measurement_type === 'duration'
   return {
     ...form,
-    name: form.name.trim(),
+    name: (form.name ?? '').trim(),
     target_sets: isDuration ? null : form.target_sets,
     target_reps: isDuration ? null : form.target_reps,
     target_duration_seconds: isDuration ? form.target_duration_seconds ?? 1800 : null,
+  }
+}
+
+// normalizeTargets returns just the per-workout target fields for a given
+// measurement type — used by the catalog "targets only" flow where name and
+// muscle groups come from the catalog.
+export function normalizeTargets(input: {
+  measurement_type: MeasurementType
+  target_sets?: number | null
+  target_reps?: number | null
+  target_duration_seconds?: number | null
+}): Pick<ExerciseInput, 'measurement_type' | 'target_sets' | 'target_reps' | 'target_duration_seconds'> {
+  const isDuration = input.measurement_type === 'duration'
+  return {
+    measurement_type: input.measurement_type,
+    target_sets: isDuration ? null : input.target_sets ?? null,
+    target_reps: isDuration ? null : input.target_reps ?? null,
+    target_duration_seconds: isDuration ? input.target_duration_seconds ?? 1800 : null,
   }
 }
 
@@ -50,9 +68,13 @@ export function normalizeExerciseInput(form: ExerciseInput): ExerciseInput {
 export function ExerciseFormFields({
   value,
   onChange,
+  hideMuscleGroup = false,
 }: {
   value: ExerciseInput
   onChange: (next: ExerciseInput) => void
+  // When true, the primary-muscle-group select is hidden — used when the
+  // exercise is catalog-linked and its muscle groups are shown read-only.
+  hideMuscleGroup?: boolean
 }) {
   const isDuration = value.measurement_type === 'duration'
   const patch = (p: Partial<ExerciseInput>) => onChange({ ...value, ...p })
@@ -63,7 +85,7 @@ export function ExerciseFormFields({
         label="Name"
         name="ex-name"
         placeholder="Bench Press"
-        value={value.name}
+        value={value.name ?? ''}
         onChange={(e) => patch({ name: e.target.value })}
       />
       <div className="field">
@@ -108,23 +130,25 @@ export function ExerciseFormFields({
           />
         </div>
       )}
-      <div className="field">
-        <label htmlFor="ex-muscle">Primary muscle group</label>
-        <select
-          id="ex-muscle"
-          className="select"
-          value={value.primary_muscle_group}
-          onChange={(e) => patch({ primary_muscle_group: e.target.value as ExerciseInput['primary_muscle_group'] })}
-        >
-          {MUSCLE_GROUP_SECTIONS.map((section) => (
-            <optgroup key={section.label} label={section.label}>
-              {section.groups.map((g) => (
-                <option key={g} value={g}>{muscleGroupLabel(g)}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </div>
+      {hideMuscleGroup ? null : (
+        <div className="field">
+          <label htmlFor="ex-muscle">Primary muscle group</label>
+          <select
+            id="ex-muscle"
+            className="select"
+            value={value.primary_muscle_group}
+            onChange={(e) => patch({ primary_muscle_group: e.target.value as ExerciseInput['primary_muscle_group'] })}
+          >
+            {MUSCLE_GROUP_SECTIONS.map((section) => (
+              <optgroup key={section.label} label={section.label}>
+                {section.groups.map((g) => (
+                  <option key={g} value={g}>{muscleGroupLabel(g)}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+      )}
     </>
   )
 }
