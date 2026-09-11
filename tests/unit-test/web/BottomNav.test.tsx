@@ -4,8 +4,9 @@ import { MemoryRouter } from 'react-router-dom'
 import { BottomNav } from '@/components/BottomNav'
 
 // The bottom tab bar replaces the header account button (PRD 0005): top-level
-// navigation (Home / Progress / Profile) lives here, Instagram-style, and the
-// tab matching the current route is marked active. Progress is added by PRD 0007.
+// navigation lives here, Instagram-style, and the tab matching the current route
+// is marked active. Per PRD 0007 the order is Progress (landing, `/`) · Workout
+// (`/workout`) · Profile (`/profile`).
 
 function renderAt(path: string) {
   return render(
@@ -16,36 +17,36 @@ function renderAt(path: string) {
 }
 
 describe('BottomNav', () => {
-  it('renders Home, Progress and Profile tabs linking to their routes', () => {
+  it('renders Progress, Workout and Profile tabs linking to their routes', () => {
     renderAt('/')
-    const home = screen.getByRole('link', { name: 'Home' })
     const progress = screen.getByRole('link', { name: 'Progress' })
+    const workout = screen.getByRole('link', { name: 'Workout' })
     const profile = screen.getByRole('link', { name: 'Profile' })
-    expect(home).toHaveAttribute('href', '/')
-    expect(progress).toHaveAttribute('href', '/progress')
+    expect(progress).toHaveAttribute('href', '/')
+    expect(workout).toHaveAttribute('href', '/workout')
     expect(profile).toHaveAttribute('href', '/profile')
   })
 
-  it('marks the Progress tab active on the progress route', () => {
-    renderAt('/progress')
+  it('marks the Progress tab active on the landing route', () => {
+    renderAt('/')
     expect(screen.getByRole('link', { name: 'Progress' }).className).toContain('is-active')
-    expect(screen.getByRole('link', { name: 'Home' }).className).not.toContain('is-active')
+    expect(screen.getByRole('link', { name: 'Workout' }).className).not.toContain('is-active')
   })
 
-  it('marks the Home tab active on the home route', () => {
-    renderAt('/')
-    expect(screen.getByRole('link', { name: 'Home' }).className).toContain('is-active')
-    expect(screen.getByRole('link', { name: 'Profile' }).className).not.toContain('is-active')
+  it('marks the Workout tab active on the workout route', () => {
+    renderAt('/workout')
+    expect(screen.getByRole('link', { name: 'Workout' }).className).toContain('is-active')
+    expect(screen.getByRole('link', { name: 'Progress' }).className).not.toContain('is-active')
   })
 
   it('marks the Profile tab active on the profile route', () => {
     renderAt('/profile')
     expect(screen.getByRole('link', { name: 'Profile' }).className).toContain('is-active')
-    expect(screen.getByRole('link', { name: 'Home' }).className).not.toContain('is-active')
+    expect(screen.getByRole('link', { name: 'Progress' }).className).not.toContain('is-active')
   })
 
-  it('does not activate Home on a nested route (end matching)', () => {
+  it('does not activate Progress on a nested route (end matching)', () => {
     renderAt('/routines/abc')
-    expect(screen.getByRole('link', { name: 'Home' }).className).not.toContain('is-active')
+    expect(screen.getByRole('link', { name: 'Progress' }).className).not.toContain('is-active')
   })
 })

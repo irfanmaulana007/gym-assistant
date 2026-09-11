@@ -18,6 +18,9 @@ test('add a catalog exercise (targets only) and a custom exercise', async ({ pag
   await page.getByRole('button', { name: /create account/i }).click()
 
   // Create and open a routine.
+  // Register lands on Progress; open the Workout tab (client-side) to reach the
+  // workout-days list.
+  await page.getByRole('link', { name: 'Workout' }).click()
   await page.getByRole('button', { name: /new workout day/i }).click()
   await page.getByLabel('Workout day name').fill('Push Day')
   await page.getByRole('button', { name: /add workout day/i }).click()

@@ -737,6 +737,7 @@ h1, h2, h3, p { margin: 0; }
 
 /* Stat-tile delta chip + streak unit. */
 .stat-unit { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.stat-sub { color: var(--text-faint); }
 .delta { font-size: 12px; font-weight: 700; }
 .delta-up { color: var(--primary); }
 .delta-down { color: var(--danger); }
@@ -766,6 +767,16 @@ h1, h2, h3, p { margin: 0; }
 .trend-flat { color: var(--danger); }
 
 /* Activity calendar heatmap. */
+.calendar-wrap { display: flex; align-items: flex-start; gap: var(--sp-2); }
+.calendar-weekdays { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; }
+.calendar-weekdays span {
+  height: 14px;
+  line-height: 14px;
+  font-size: 10px;
+  color: var(--text-faint);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 .calendar { display: flex; gap: 4px; }
 .calendar-week { display: flex; flex-direction: column; gap: 4px; }
 .calendar-cell { width: 14px; height: 14px; border-radius: 3px; background: var(--surface-2); }

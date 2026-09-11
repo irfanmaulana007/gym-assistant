@@ -36,17 +36,24 @@ export function ActiveSessionPage() {
     onSuccess: () => {
       setStopOpen(false)
       invalidate()
+      // A finished workout changes the Progress dashboard and the workout
+      // list's "last set to beat" — refresh both so they reflect it without a
+      // hard reload.
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['routines'] })
+      if (session?.routine_id) qc.invalidateQueries({ queryKey: ['routine', session.routine_id] })
     },
     onError: () => setStopError('Could not save the workout. Try again.'),
   })
   const abandonMut = useMutation({
     mutationFn: () => sessionsApi.abandon(id),
     onSuccess: () => {
-      // A discarded workout has nothing to summarize — send the user home
-      // rather than the "Workout complete" screen the completed status shows.
+      // A discarded workout has nothing to summarize — send the user back to
+      // the workout list rather than the "Workout complete" screen the
+      // completed status shows.
       setStopOpen(false)
       invalidate()
-      navigate('/', { replace: true })
+      navigate('/workout', { replace: true })
     },
     onError: () => setStopError('Could not discard the workout. Try again.'),
   })
@@ -68,12 +75,12 @@ export function ActiveSessionPage() {
   // An abandoned session (discarded here, or opened directly by URL) is never
   // shown as a completed workout — it redirects home.
   if (session.status === 'abandoned') {
-    return <Navigate to="/" replace />
+    return <Navigate to="/workout" replace />
   }
 
   if (session.status === 'completed') {
     return (
-      <Layout title="Workout complete" back="/" backLabel="Home">
+      <Layout title="Workout complete" back="/workout" backLabel="Workout">
         <SessionSummary session={session} />
       </Layout>
     )

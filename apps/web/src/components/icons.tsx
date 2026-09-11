@@ -81,6 +81,18 @@ export function UserIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function DumbbellIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} aria-hidden {...props}>
+      <path d="M6.5 6.5v11" />
+      <path d="M3.5 8.5v7" />
+      <path d="M17.5 6.5v11" />
+      <path d="M20.5 8.5v7" />
+      <line x1="6.5" y1="12" x2="17.5" y2="12" />
+    </svg>
+  )
+}
+
 export function ChartIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...base} aria-hidden {...props}>

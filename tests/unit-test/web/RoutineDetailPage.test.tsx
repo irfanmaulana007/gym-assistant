@@ -49,7 +49,7 @@ function renderPage() {
         <AuthProvider>
           <Routes>
             <Route path="/routines/:id" element={<RoutineDetailPage />} />
-            <Route path="/" element={<div>Workouts home</div>} />
+            <Route path="/workout" element={<div>Workouts home</div>} />
           </Routes>
         </AuthProvider>
       </MemoryRouter>

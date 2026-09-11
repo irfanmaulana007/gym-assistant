@@ -36,6 +36,7 @@ test('bottom sheet slides up on open (enter animation runs)', async ({ page }) =
     content: '.sheet { transition-duration: 2s !important; }',
   })
 
+  await page.getByRole('link', { name: 'Workout' }).click()
   await page.getByRole('button', { name: /new workout day/i }).click()
 
   const panel = page.getByRole('dialog', { name: /new workout day/i })
