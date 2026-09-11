@@ -1,0 +1,41 @@
+# Keep build contexts small and reproducible. Applies to both the API and web
+# image builds (both use the repository root as their build context).
+
+# Dependencies & build output
+node_modules
+**/node_modules
+apps/web/dist
+apps/web/dist-ssr
+apps/web/.vite
+apps/api/bin
+apps/api/tmp
+tests/bin
+
+# Secrets & local env — never bake these into an image
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+!**/.env.example
+
+# VCS / tooling / editor
+.git
+.gitignore
+.claude
+.idea
+.vscode
+
+# Tests, reports, coverage
+apps/web/playwright-report
+apps/web/test-results
+coverage.out
+coverage.html
+*.tsbuildinfo
+
+# Docs & OS cruft (not needed to build)
+*.md
+!apps/web/README.md
+.DS_Store
+Thumbs.db
+*.log
