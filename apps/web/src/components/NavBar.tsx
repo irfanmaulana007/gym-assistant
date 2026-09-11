@@ -10,9 +10,11 @@ export type BackTarget = string | number | boolean
 // PRD 0005. The empty right column preserves the grid so the title stays
 // optically centered.
 //
-// The title only renders on child screens — those pushed with a back chevron.
-// Top-level tab screens (Home/Profile) carry their own large in-body heading, so
-// a header title there would just be redundant chrome; their nav bar stays empty.
+// This bar is only mounted on child screens — those pushed with a back chevron.
+// Top-level tab screens (Home/Profile) and full-screen flows carry their own
+// large in-body heading, so a nav bar there would be empty chrome; `Layout`
+// omits it entirely rather than render a blank strip (see Layout.tsx). The
+// `hasBack` guards below stay as a defensive fallback for any direct use.
 export function NavBar({
   title,
   back,

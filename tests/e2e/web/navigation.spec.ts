@@ -67,3 +67,33 @@ test('profile tab opens the profile screen with identity and logout', async ({ p
   await page.getByRole('button', { name: /logout/i }).click()
   await expect(page).toHaveURL(/\/login$/)
 })
+
+test('top-level screens render no header element (no blank strip); child screens do', async ({ page }) => {
+  const email = `header_${Date.now()}@example.com`
+
+  await page.goto('/register')
+  await page.getByLabel('Display name').fill('Header User')
+  await page.getByLabel('Email').fill(email)
+  await page.getByLabel('Password').fill('supersecret1')
+  await page.getByRole('button', { name: /create account/i }).click()
+
+  await expect(page.getByText(/welcome back, header/i)).toBeVisible()
+
+  // Home is top-level: the empty nav bar is omitted entirely, so there is NO
+  // <header> (banner) taking up a blank strip at the top of the page.
+  await expect(page.getByRole('banner')).toHaveCount(0)
+
+  // Open a child screen — it IS pushed with a back chevron, so the header exists.
+  await page.getByRole('button', { name: /new workout day/i }).click()
+  await page.getByLabel('Workout day name').fill('Leg Day')
+  await page.getByRole('button', { name: /add workout day/i }).click()
+  await page.getByText('Leg Day').click()
+
+  await expect(page.getByRole('banner')).toHaveCount(1)
+  await expect(page.getByRole('banner').getByRole('heading', { name: 'Leg Day' })).toBeVisible()
+
+  // Back on the top-level home, the header is gone again.
+  await page.getByRole('button', { name: /workouts/i }).click()
+  await expect(page.getByText(/welcome back, header/i)).toBeVisible()
+  await expect(page.getByRole('banner')).toHaveCount(0)
+})
