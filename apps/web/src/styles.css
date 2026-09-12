@@ -188,6 +188,48 @@ h1, h2, h3, p { margin: 0; }
 }
 .avatar:active { transform: scale(0.94); }
 .avatar-lg { width: 56px; height: 56px; font-size: 22px; }
+/* Photo avatar: fill the circle, cropping to a square. */
+.avatar-img { object-fit: cover; padding: 0; }
+
+/* Avatar shown on the bottom-nav Profile tab (PRD 0008). */
+.bottom-nav-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  object-fit: cover;
+}
+.bottom-nav-item.is-active .bottom-nav-avatar {
+  box-shadow: 0 0 0 2px var(--primary);
+}
+
+/* Edit-profile avatar picker: tap the avatar to choose a new photo. */
+.avatar-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0 var(--sp-4);
+}
+.avatar-picker-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: var(--primary);
+}
+.avatar-picker-hint { font-size: 14px; font-weight: 600; }
+
+/* Sticky primary CTA at the foot of a full-screen form (PRD 0008). */
+.sticky-cta {
+  position: sticky;
+  bottom: 0;
+  padding: var(--sp-3) 0 calc(var(--sp-3) + var(--safe-bottom, 0px));
+  background: linear-gradient(to top, var(--bg) 60%, transparent);
+  margin-top: var(--sp-2);
+}
 
 /* Profile screen: centered identity header + grouped detail rows. */
 .profile-head {

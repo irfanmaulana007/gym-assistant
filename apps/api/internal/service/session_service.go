@@ -12,15 +12,24 @@ import (
 	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/vocab"
 )
 
+// sessionUsers is the subset of the user repository SessionService needs: it
+// reads the logging user's preferred weight unit to default set-entry units
+// (PRD 0008 §4.4).
+type sessionUsers interface {
+	GetByID(ctx context.Context, id string) (*domain.User, error)
+}
+
 // SessionService orchestrates the workout-session lifecycle, the exercise
 // checklist, ad-hoc exercises, and set-entry logging (PRD 0002).
 type SessionService struct {
-	repo *repository.SessionRepository
+	repo  *repository.SessionRepository
+	users sessionUsers
 }
 
-// NewSessionService builds a SessionService.
-func NewSessionService(repo *repository.SessionRepository) *SessionService {
-	return &SessionService{repo: repo}
+// NewSessionService builds a SessionService. users may be nil, in which case a
+// missing weight unit falls back to kg (pre-PRD-0008 behavior).
+func NewSessionService(repo *repository.SessionRepository, users sessionUsers) *SessionService {
+	return &SessionService{repo: repo, users: users}
 }
 
 // Start begins a session for a routine the user owns. It enforces a single live
@@ -131,16 +140,29 @@ func (s *SessionService) CreateEntry(ctx context.Context, userID, sessionExercis
 	if details := validateEntry(in); len(details) > 0 {
 		return nil, validationErr(details)
 	}
-	// Default the weight unit to kg when a weight is provided without one.
+	// Default the weight unit to the user's preferred unit when a weight is
+	// provided without one (PRD 0008 §4.4), falling back to kg.
 	if in.Weight != nil && in.WeightUnit == nil {
-		kg := "kg"
-		in.WeightUnit = &kg
+		unit := s.preferredWeightUnit(ctx, userID)
+		in.WeightUnit = &unit
 	}
 	entry, err := s.repo.CreateEntry(ctx, userID, sessionExerciseID, in)
 	if err != nil {
 		return nil, notFoundOr(err, "session exercise not found")
 	}
 	return entry, nil
+}
+
+// preferredWeightUnit returns the user's preferred weight unit, defaulting to
+// kg when it can't be resolved (nil dependency or lookup error) so logging is
+// never blocked on the profile read.
+func (s *SessionService) preferredWeightUnit(ctx context.Context, userID string) string {
+	if s.users != nil {
+		if u, err := s.users.GetByID(ctx, userID); err == nil && u.PreferredWeightUnit != "" {
+			return u.PreferredWeightUnit
+		}
+	}
+	return "kg"
 }
 
 // UpdateEntry edits a logged entry.

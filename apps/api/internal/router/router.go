@@ -56,6 +56,8 @@ func New(deps Deps) http.Handler {
 
 			if deps.Auth != nil {
 				r.Get("/auth/me", deps.Auth.Me)
+				r.Patch("/auth/me", deps.Auth.UpdateProfile)
+				r.Post("/auth/change-password", deps.Auth.ChangePassword)
 			}
 
 			if deps.Routine != nil {

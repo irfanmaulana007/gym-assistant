@@ -1,9 +1,14 @@
 import { initialsFor } from '@/lib/initials'
 
-// Circular initials avatar derived from a name (or email fallback).
-export function Avatar({ name, size = 'md' }: { name: string; size?: 'md' | 'lg' }) {
+// Circular avatar: renders the user's picture when `src` is set (PRD 0008),
+// otherwise falls back to initials derived from a name (or email).
+export function Avatar({ name, src, size = 'md' }: { name: string; src?: string | null; size?: 'md' | 'lg' }) {
+  const cls = `avatar ${size === 'lg' ? 'avatar-lg' : ''}`
+  if (src) {
+    return <img className={`${cls} avatar-img`} src={src} alt="" aria-hidden />
+  }
   return (
-    <span className={`avatar ${size === 'lg' ? 'avatar-lg' : ''}`} aria-hidden>
+    <span className={cls} aria-hidden>
       {initialsFor(name)}
     </span>
   )

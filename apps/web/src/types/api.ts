@@ -31,12 +31,84 @@ export function muscleGroupLabel(group: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }
 
+export type HeightUnit = 'cm' | 'in'
+export type Gender = 'male' | 'female' | 'other' | 'prefer_not_to_say'
+export type FitnessGoal = 'lose_fat' | 'build_muscle' | 'maintain' | 'gain_strength'
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
+
+// Human-readable labels for the profile enums (PRD 0008).
+export const GENDER_LABELS: Record<Gender, string> = {
+  male: 'Male',
+  female: 'Female',
+  other: 'Other',
+  prefer_not_to_say: 'Prefer not to say',
+}
+export const FITNESS_GOAL_LABELS: Record<FitnessGoal, string> = {
+  lose_fat: 'Lose fat',
+  build_muscle: 'Build muscle',
+  maintain: 'Maintain',
+  gain_strength: 'Gain strength',
+}
+export const ACTIVITY_LEVEL_LABELS: Record<ActivityLevel, string> = {
+  sedentary: 'Sedentary',
+  light: 'Lightly active',
+  moderate: 'Moderately active',
+  active: 'Active',
+  very_active: 'Very active',
+}
+
 export interface User {
   id: string
   email: string
   display_name: string
+  // Identity & health data (PRD 0008 — all optional/nullable).
+  username: string | null
+  full_name: string | null
+  gender: Gender | null
+  date_of_birth: string | null
+  body_weight: number | null
+  body_weight_unit: WeightUnit | null
+  height: number | null
+  height_unit: HeightUnit | null
+  fitness_goal: FitnessGoal | null
+  activity_level: ActivityLevel | null
+  // Per-user preferred display/input units (never null; default kg/cm).
+  preferred_weight_unit: WeightUnit
+  preferred_height_unit: HeightUnit
+  avatar_url: string | null
   created_at: string
   updated_at: string
+}
+
+export interface RegisterRequest {
+  email: string
+  password: string
+  display_name: string
+  username?: string
+}
+
+export interface LoginRequest {
+  identifier: string
+  password: string
+}
+
+// Partial profile update (PATCH /auth/me). Every field optional; an explicit
+// null clears a nullable field (avatar, health data); preferred units cannot be
+// null.
+export interface UpdateProfileRequest {
+  username?: string | null
+  full_name?: string | null
+  gender?: Gender | null
+  date_of_birth?: string | null
+  body_weight?: number | null
+  body_weight_unit?: WeightUnit | null
+  height?: number | null
+  height_unit?: HeightUnit | null
+  fitness_goal?: FitnessGoal | null
+  activity_level?: ActivityLevel | null
+  preferred_weight_unit?: WeightUnit
+  preferred_height_unit?: HeightUnit
+  avatar_url?: string | null
 }
 
 export interface AuthResponse {
