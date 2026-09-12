@@ -6,6 +6,7 @@ import { Layout } from '@/components/Layout'
 import { Sheet } from '@/components/Sheet'
 import { Button, ErrorText, Field, Spinner } from '@/components/ui'
 import { useElapsed } from '@/hooks/useElapsed'
+import { ACTIVE_SESSION_KEY } from '@/hooks/useActiveSession'
 import { formatDuration } from '@/lib/format'
 import { ExerciseCard } from './ExerciseCard'
 import { SessionSummary } from './SessionSummary'
@@ -36,6 +37,8 @@ export function ActiveSessionPage() {
     onSuccess: () => {
       setStopOpen(false)
       invalidate()
+      // The workout is over — clear the global resume banner.
+      qc.invalidateQueries({ queryKey: ACTIVE_SESSION_KEY })
       // A finished workout changes the Progress dashboard and the workout
       // list's "last set to beat" — refresh both so they reflect it without a
       // hard reload.
@@ -53,6 +56,8 @@ export function ActiveSessionPage() {
       // completed status shows.
       setStopOpen(false)
       invalidate()
+      // The workout is over — clear the global resume banner.
+      qc.invalidateQueries({ queryKey: ACTIVE_SESSION_KEY })
       navigate('/workout', { replace: true })
     },
     onError: () => setStopError('Could not discard the workout. Try again.'),
