@@ -6,6 +6,7 @@ import { Layout } from '@/components/Layout'
 import { Sheet } from '@/components/Sheet'
 import { Segmented } from '@/components/Segmented'
 import { Button, ErrorText, Spinner } from '@/components/ui'
+import { MuscleDiagram } from '@/components/MuscleDiagram'
 import { PencilIcon } from '@/components/icons'
 import { EMPTY_EXERCISE_FORM, ExerciseFormFields, MEASUREMENT_LABELS, exerciseToInput, normalizeExerciseInput } from './ExerciseForm'
 import { muscleGroupLabel } from '@/types/api'
@@ -125,6 +126,10 @@ export function ExerciseHistoryPage() {
         <div className="stack" role="tabpanel" aria-label="Info">
           <div className="section-label">Muscles worked</div>
           <div className="card stack">
+            <MuscleDiagram
+              primary={exercise.primary_muscle_group}
+              secondary={exercise.secondary_muscle_groups}
+            />
             <div className="row wrap" style={{ gap: 'var(--sp-2)' }}>
               <span className="badge badge-active">{muscleGroupLabel(exercise.primary_muscle_group)}</span>
               {exercise.secondary_muscle_groups.map((g) => (

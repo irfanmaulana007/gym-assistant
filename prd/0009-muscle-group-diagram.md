@@ -3,9 +3,9 @@
 | Field | Value |
 |-------|-------|
 | Author | Irfan Maulana |
-| Status | Draft |
+| Status | Implemented |
 | Created | 2026-09-11 |
-| Updated | 2026-09-11 |
+| Updated | 2026-09-12 |
 | App | web |
 | Extends | [PRD 0002 — Session Lifecycle, Exercise Types & Metrics](0002-session-lifecycle-and-metrics.md), [PRD 0006 — Exercise Catalog (Master Data)](0006-exercise-catalog.md) |
 | Source inputs | [anatome](https://github.com/Rippy1911/anatome) (muscle-diagram API, Apache-2.0, keyless, self-hostable on Cloudflare Workers) |
