@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
+import { AuthProvider } from '@/lib/auth'
 
 // The top nav bar is native-app chrome for CHILD screens only. Top-level tab
 // screens and full-screen flows pass no `back` and carry their own in-body
@@ -14,9 +15,11 @@ function renderLayout(props: Partial<Parameters<typeof Layout>[0]> = {}) {
   const { title = 'Screen', children = <p>body</p>, ...rest } = props
   return render(
     <MemoryRouter>
-      <Layout title={title} {...rest}>
-        {children}
-      </Layout>
+      <AuthProvider>
+        <Layout title={title} {...rest}>
+          {children}
+        </Layout>
+      </AuthProvider>
     </MemoryRouter>,
   )
 }

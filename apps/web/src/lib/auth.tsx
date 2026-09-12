@@ -7,9 +7,11 @@ interface AuthState {
   user: User | null
   token: string | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string, displayName: string) => Promise<void>
+  login: (identifier: string, password: string) => Promise<void>
+  register: (email: string, password: string, displayName: string, username?: string) => Promise<void>
   logout: () => void
+  /** Apply an already-fetched user into context (e.g. after PATCH /auth/me). */
+  setUser: (user: User) => void
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined)
@@ -61,23 +63,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = useCallback(
-    async (email: string, password: string) => {
-      const res = await authApi.login(email, password)
+    async (identifier: string, password: string) => {
+      const res = await authApi.login(identifier, password)
       applyAuth(res.token, res.user)
     },
     [applyAuth],
   )
 
   const register = useCallback(
-    async (email: string, password: string, displayName: string) => {
-      const res = await authApi.register(email, password, displayName)
+    async (email: string, password: string, displayName: string, username?: string) => {
+      const res = await authApi.register(email, password, displayName, username)
       applyAuth(res.token, res.user)
     },
     [applyAuth],
   )
 
   const value = useMemo<AuthState>(
-    () => ({ user, token, loading, login, register, logout }),
+    () => ({ user, token, loading, login, register, logout, setUser }),
     [user, token, loading, login, register, logout],
   )
 

@@ -1,6 +1,7 @@
 // Small pure formatting helpers shared across screens.
 
-import type { Exercise } from '@/types/api'
+import type { Exercise, WeightUnit } from '@/types/api'
+import { convertWeight } from './units'
 
 /** Format seconds as H:MM:SS (or MM:SS under an hour). */
 export function formatDuration(totalSeconds: number): string {
@@ -38,9 +39,18 @@ export function describeTarget(ex: Exercise): string {
   return base
 }
 
-/** The previous session's top set as "60kg × 8", or null when there's none. */
-export function formatLastSet(last?: { weight: number; weight_unit: string; reps: number } | null): string | null {
+/** The previous session's top set as "60kg × 8", or null when there's none.
+ * When a preferred unit is given, the weight is converted from its stored unit
+ * so history renders consistently in the user's unit (PRD 0008 §4.4). */
+export function formatLastSet(
+  last?: { weight: number; weight_unit: string; reps: number } | null,
+  preferredUnit?: WeightUnit,
+): string | null {
   if (!last) return null
+  if (preferredUnit && (last.weight_unit === 'kg' || last.weight_unit === 'lb')) {
+    const w = convertWeight(last.weight, last.weight_unit, preferredUnit)
+    return `${w}${preferredUnit} × ${last.reps}`
+  }
   return `${last.weight}${last.weight_unit} × ${last.reps}`
 }
 

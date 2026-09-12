@@ -3,12 +3,15 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { sessionsApi, type EntryInput } from '@/api/sessions'
 import { Button } from '@/components/ui'
 import { formatDuration, formatLastSet, formatTarget } from '@/lib/format'
+import { useAuth } from '@/lib/auth'
 import { muscleGroupLabel, type SessionExercise } from '@/types/api'
 
 // One checklist row: shows target, a done toggle, logged entries, and inline
 // inputs to log a weight set or a timed bout.
 export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; sx: SessionExercise; disabled: boolean }) {
   const qc = useQueryClient()
+  const { user } = useAuth()
+  const preferredUnit = user?.preferred_weight_unit ?? 'kg'
   const invalidate = () => qc.invalidateQueries({ queryKey: ['session', sessionId] })
 
   const isDuration = sx.measurement_type === 'duration'
@@ -66,7 +69,7 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
             <span className="badge">{muscleGroupLabel(sx.primary_muscle_group)}</span>
           </div>
           {sx.last_set ? (
-            <div className="small muted">Last time {formatLastSet(sx.last_set)}</div>
+            <div className="small muted">Last time {formatLastSet(sx.last_set, preferredUnit)}</div>
           ) : null}
         </div>
       </div>
@@ -106,7 +109,7 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
                 type="number"
                 min={0}
                 inputMode="decimal"
-                placeholder={sx.last_set ? `${sx.last_set.weight}${sx.last_set.weight_unit}` : 'kg'}
+                placeholder={preferredUnit}
                 aria-label={`${sx.name_snapshot} weight`}
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}

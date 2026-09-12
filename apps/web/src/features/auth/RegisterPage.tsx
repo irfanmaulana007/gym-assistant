@@ -8,6 +8,7 @@ export function RegisterPage() {
   const { register } = useAuth()
   const navigate = useNavigate()
   const [displayName, setDisplayName] = useState('')
+  const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -20,7 +21,7 @@ export function RegisterPage() {
     setFieldErrors({})
     setSubmitting(true)
     try {
-      await register(email, password, displayName)
+      await register(email, password, displayName, username.trim() || undefined)
       navigate('/', { replace: true })
     } catch (err) {
       if (err instanceof ApiError) {
@@ -54,6 +55,16 @@ export function RegisterPage() {
             onChange={(e) => setDisplayName(e.target.value)}
             error={fieldErrors.display_name}
             required
+          />
+          <Field
+            label="Username (optional)"
+            name="username"
+            autoComplete="username"
+            autoCapitalize="none"
+            placeholder="letters, numbers, _ and ."
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            error={fieldErrors.username}
           />
           <Field
             label="Email"
