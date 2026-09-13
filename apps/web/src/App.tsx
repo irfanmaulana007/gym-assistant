@@ -10,6 +10,8 @@ import { RoutineDetailPage } from '@/features/routines/RoutineDetailPage'
 import { ActiveSessionPage } from '@/features/sessions/ActiveSessionPage'
 import { ExerciseHistoryPage } from '@/features/exercises/ExerciseHistoryPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
+import { EditProfilePage } from '@/features/profile/EditProfilePage'
+import { ChangePasswordPage } from '@/features/profile/ChangePasswordPage'
 import { DashboardPage } from '@/features/progress/DashboardPage'
 
 function protectedElement(el: React.ReactNode) {
@@ -32,6 +34,8 @@ export function App() {
             {/* Progress moved to `/`; keep the old path working for bookmarks. */}
             <Route path="/progress" element={<Navigate to="/" replace />} />
             <Route path="/profile" element={protectedElement(<ProfilePage />)} />
+            <Route path="/profile/edit" element={protectedElement(<EditProfilePage />)} />
+            <Route path="/profile/password" element={protectedElement(<ChangePasswordPage />)} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AuthProvider>

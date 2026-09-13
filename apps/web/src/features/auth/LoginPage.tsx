@@ -7,7 +7,7 @@ import { Button, Field, ErrorText } from '@/components/ui'
 export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -17,7 +17,7 @@ export function LoginPage() {
     setError('')
     setSubmitting(true)
     try {
-      await login(email, password)
+      await login(identifier, password)
       navigate('/', { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong')
@@ -36,12 +36,12 @@ export function LoginPage() {
         </div>
         <form className="card stack" onSubmit={onSubmit}>
           <Field
-            label="Email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            label="Username or email"
+            name="identifier"
+            autoComplete="username"
+            autoCapitalize="none"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
             required
           />
           <Field

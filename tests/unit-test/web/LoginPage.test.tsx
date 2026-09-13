@@ -35,7 +35,8 @@ describe('LoginPage', () => {
 
     renderLogin()
 
-    await userEvent.type(screen.getByLabelText('Email'), 'a@b.com')
+    // The first field now accepts a username OR an email (PRD 0008).
+    await userEvent.type(screen.getByLabelText('Username or email'), 'athlete1')
     await userEvent.type(screen.getByLabelText('Password'), 'supersecret1')
     await userEvent.click(screen.getByRole('button', { name: /log in/i }))
 
@@ -44,6 +45,9 @@ describe('LoginPage', () => {
     const [url, init] = fetchMock.mock.calls[0]
     expect(String(url)).toContain('/api/v1/auth/login')
     expect(init.method).toBe('POST')
+    // The credential is sent as `identifier`, not `email`.
+    const body = JSON.parse(String(init.body))
+    expect(body).toEqual({ identifier: 'athlete1', password: 'supersecret1' })
   })
 
   it('shows an error message on invalid credentials', async () => {
@@ -58,7 +62,7 @@ describe('LoginPage', () => {
     )
 
     renderLogin()
-    await userEvent.type(screen.getByLabelText('Email'), 'a@b.com')
+    await userEvent.type(screen.getByLabelText('Username or email'), 'a@b.com')
     await userEvent.type(screen.getByLabelText('Password'), 'wrong')
     await userEvent.click(screen.getByRole('button', { name: /log in/i }))
 

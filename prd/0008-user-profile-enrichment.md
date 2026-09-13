@@ -3,9 +3,9 @@
 | Field | Value |
 |-------|-------|
 | Author | Irfan Maulana |
-| Status | Draft |
+| Status | Implemented |
 | Created | 2026-09-11 |
-| Updated | 2026-09-11 |
+| Updated | 2026-09-12 |
 | App | api, web |
 | Extends | [PRD 0001 — Workout Tracking Foundation](0001-workout-tracking-foundation.md), [PRD 0003 — Native-Mobile Profile Screen](0003-native-mobile-profile-screen.md), [PRD 0005 — Bottom Tab Bar & Clean Native Header](0005-bottom-tab-bar-and-clean-header.md) |
 
