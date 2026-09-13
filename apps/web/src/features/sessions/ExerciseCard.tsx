@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { sessionsApi, type EntryInput } from '@/api/sessions'
 import { Button } from '@/components/ui'
+import { Segmented } from '@/components/Segmented'
 import { formatDuration, formatLastSet, formatTarget } from '@/lib/format'
 import { useAuth } from '@/lib/auth'
-import { muscleGroupLabel, type SessionExercise } from '@/types/api'
+import { muscleGroupLabel, type SessionExercise, type WeightUnit } from '@/types/api'
 
 // One checklist row: shows target, a done toggle, logged entries, and inline
 // inputs to log a weight set or a timed bout.
@@ -18,6 +19,12 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
   const [weight, setWeight] = useState('')
   const [reps, setReps] = useState('')
   const [minutes, setMinutes] = useState('')
+  // Sticky-per-exercise unit for logging: defaults to the user's preferred unit
+  // (which loads asynchronously), but can be switched to match whatever the
+  // machine in front of them shows. Store only the explicit override so the
+  // default stays reactive until the user picks a unit for this exercise.
+  const [unitOverride, setUnitOverride] = useState<WeightUnit | null>(null)
+  const unit = unitOverride ?? preferredUnit
 
   const toggleMut = useMutation({
     mutationFn: (status: SessionExercise['status']) => sessionsApi.updateSessionExercise(sx.id, { status }),
@@ -45,7 +52,7 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
       const w = weight === '' ? null : Number(weight)
       const r = reps === '' ? null : Number(reps)
       if (r == null) return
-      logMut.mutate({ weight: w, reps: r })
+      logMut.mutate({ weight: w, reps: r, weight_unit: w == null ? null : unit })
     }
   }
 
@@ -72,6 +79,19 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
             <div className="small muted">Last time {formatLastSet(sx.last_set, preferredUnit)}</div>
           ) : null}
         </div>
+        {!disabled && !isDuration ? (
+          <div className="unit-toggle">
+            <Segmented
+              options={[
+                { value: 'kg', label: 'kg' },
+                { value: 'lb', label: 'lb' },
+              ]}
+              value={unit}
+              onChange={setUnitOverride}
+              ariaLabel={`${sx.name_snapshot} weight unit`}
+            />
+          </div>
+        ) : null}
       </div>
 
       {sx.entries && sx.entries.length > 0 ? (
@@ -109,7 +129,7 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
                 type="number"
                 min={0}
                 inputMode="decimal"
-                placeholder={preferredUnit}
+                placeholder={unit}
                 aria-label={`${sx.name_snapshot} weight`}
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
