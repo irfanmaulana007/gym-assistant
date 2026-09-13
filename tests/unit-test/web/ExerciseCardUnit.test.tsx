@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/lib/auth'
@@ -69,5 +70,46 @@ describe('ExerciseCard weight unit default', () => {
       const input = screen.getByLabelText('Bench weight') as HTMLInputElement
       expect(input.placeholder).toBe('lb')
     })
+  })
+
+  // PRD 0010: the per-exercise kg/lb toggle lets the user log the machine's
+  // actual unit; switching it updates the placeholder and the logged set is
+  // stored with the chosen unit (not the preferred one).
+  it('logs the set with the unit chosen on the toggle, overriding the preferred unit', async () => {
+    localStorage.setItem('gym.token', 'jwt-token')
+    // Preferred unit is kg; the machine shows lb, so the user switches the toggle.
+    const bodies: unknown[] = []
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/entries') && init?.method === 'POST') {
+        bodies.push(JSON.parse(init.body as string))
+        return new Response(JSON.stringify({ id: 'entry1' }), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      // /auth/me and anything else: return the user with preferred kg.
+      return new Response(
+        JSON.stringify({ id: '1', email: 'a@b.com', display_name: 'A', preferred_weight_unit: 'kg' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderCard()
+
+    const input = (await screen.findByLabelText('Bench weight')) as HTMLInputElement
+    expect(input.placeholder).toBe('kg')
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'lb' }))
+    expect(input.placeholder).toBe('lb')
+
+    await user.type(input, '135')
+    await user.type(screen.getByLabelText('Bench reps'), '8')
+    await user.click(screen.getByRole('button', { name: 'Log' }))
+
+    await waitFor(() => expect(bodies.length).toBe(1))
+    expect(bodies[0]).toMatchObject({ weight: 135, reps: 8, weight_unit: 'lb' })
   })
 })

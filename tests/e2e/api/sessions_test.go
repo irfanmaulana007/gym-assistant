@@ -283,6 +283,80 @@ func TestSession_CrossUserIsolation_E2E(t *testing.T) {
 	}
 }
 
+// TestSetEntry_WeightUnitRoundTrip_E2E proves PRD 0010's contract: a set logged
+// with an explicit weight_unit is stored and read back faithfully in THAT unit,
+// even when it differs from the user's preferred unit (no coercion). The user's
+// preferred unit is kg; the machine shows lb, so the set is logged in lb.
+func TestSetEntry_WeightUnitRoundTrip_E2E(t *testing.T) {
+	h := newHarnessWithDB(t)
+	token := h.registerUser(t, "unit-roundtrip@example.com", "supersecret1", "Unit")
+
+	// Preferred unit stays the kg default; we do not change it.
+	routine := h.createRoutine(t, token, "Push", "")
+	h.addExercise(t, token, routine, map[string]any{
+		"name": "Bench Press", "measurement_type": "weight_reps",
+		"target_sets": 3, "target_reps": 8, "primary_muscle_group": "chest",
+	})
+
+	startResp := h.do(t, http.MethodPost, "/api/v1/routines/"+routine+"/sessions", token, nil)
+	if startResp.Status != http.StatusCreated {
+		t.Fatalf("start status %d body %s", startResp.Status, startResp.Body)
+	}
+	var session struct {
+		ID        string `json:"id"`
+		Exercises []struct {
+			ID string `json:"id"`
+		} `json:"exercises"`
+	}
+	startResp.decode(t, &session)
+	benchSX := session.Exercises[0].ID
+
+	// Log 135 lb x 8 — explicit lb, not the preferred kg.
+	if r := h.do(t, http.MethodPost, "/api/v1/session-exercises/"+benchSX+"/entries", token, map[string]any{
+		"weight": 135, "reps": 8, "weight_unit": "lb",
+	}); r.Status != http.StatusCreated {
+		t.Fatalf("log lb entry status %d body %s", r.Status, r.Body)
+	}
+
+	// Read the session back and assert the stored unit is lb.
+	getResp := h.do(t, http.MethodGet, "/api/v1/sessions/"+session.ID, token, nil)
+	if getResp.Status != http.StatusOK {
+		t.Fatalf("get session status %d body %s", getResp.Status, getResp.Body)
+	}
+	var detail struct {
+		Exercises []struct {
+			ID      string `json:"id"`
+			Entries []struct {
+				Weight     *float64 `json:"weight"`
+				WeightUnit *string  `json:"weight_unit"`
+				Reps       *int     `json:"reps"`
+			} `json:"entries"`
+		} `json:"exercises"`
+	}
+	getResp.decode(t, &detail)
+
+	var entries []struct {
+		Weight     *float64 `json:"weight"`
+		WeightUnit *string  `json:"weight_unit"`
+		Reps       *int     `json:"reps"`
+	}
+	for _, e := range detail.Exercises {
+		if e.ID == benchSX {
+			entries = e.Entries
+		}
+	}
+	if len(entries) != 1 {
+		t.Fatalf("bench entries = %d, want 1", len(entries))
+	}
+	got := entries[0]
+	if got.WeightUnit == nil || *got.WeightUnit != "lb" {
+		t.Errorf("weight_unit = %v, want lb (must not coerce to preferred kg)", got.WeightUnit)
+	}
+	if got.Weight == nil || *got.Weight != 135 {
+		t.Errorf("weight = %v, want 135", got.Weight)
+	}
+}
+
 func assertContains(t *testing.T, haystack []string, want string) {
 	t.Helper()
 	for _, s := range haystack {

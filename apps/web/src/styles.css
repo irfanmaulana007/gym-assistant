@@ -565,6 +565,12 @@ h1, h2, h3, p { margin: 0; }
   box-shadow: var(--shadow-1);
 }
 
+/* Compact segmented control for the per-exercise kg/lb unit toggle: a small,
+   fixed-width track that doesn't stretch across the exercise card header. */
+.unit-toggle { flex: 0 0 auto; width: 92px; }
+.unit-toggle .segmented { padding: 2px; }
+.unit-toggle .segmented > button { min-height: 32px; font-size: 13px; }
+
 /* Label/value rows inside a grouped inset list (native settings-style detail). */
 .detail-row {
   display: flex;
