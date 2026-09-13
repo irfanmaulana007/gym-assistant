@@ -74,6 +74,94 @@ export function buildMuscleLayers(
   return segments.join('|')
 }
 
+// --- Muscle-usage diagram (PRD 0011) ---
+//
+// The profile diagram colors each muscle group by HOW MUCH it was trained, on a
+// yellow → orange → red gradient relative to the user's own most-trained group.
+// The tiers are ordered strongest-first; the most-trained group is always red.
+// Hexes are kept in #-less form for anatome's `layers` param.
+export const USAGE_TIER_HEXES = ['DC2626', 'F97316', 'F59E0B', 'FDE047'] as const
+
+interface UsageTier {
+  hex: string
+  // A group qualifies for this tier when ratio (sets / maxSets) is strictly
+  // greater than `min`. Ordered strongest-first so the first match wins.
+  min: number
+}
+
+const USAGE_TIERS: readonly UsageTier[] = [
+  { hex: 'DC2626', min: 0.75 }, // red — trained the most
+  { hex: 'F97316', min: 0.5 }, // deep orange
+  { hex: 'F59E0B', min: 0.25 }, // amber
+  { hex: 'FDE047', min: 0 }, // yellow — trained the least (still > 0)
+]
+
+// One muscle group's training load. Structurally compatible with the analytics
+// MuscleGroupStat (which carries extra fields we ignore here).
+export interface MuscleUsageStat {
+  muscle_group: string
+  sets: number
+}
+
+function tierHexFor(ratio: number): string {
+  // ratio is in (0, 1]; USAGE_TIERS ends at min:0 so a positive ratio always matches.
+  return (USAGE_TIERS.find((t) => ratio > t.min) ?? USAGE_TIERS[USAGE_TIERS.length - 1]).hex
+}
+
+// Build the anatome `layers` string coloring each trained muscle group by its
+// share of the user's most-trained group. Groups with no sets, or with no
+// anatomical mapping (full_body / cardio / other), are skipped and render in the
+// diagram's neutral body color. Returns null when nothing is trained/mappable so
+// callers can show an empty state instead of a bare body with a misleading legend.
+export function buildMuscleUsageLayers(stats: readonly MuscleUsageStat[]): string | null {
+  const trained = stats.filter((s) => s.sets > 0 && anatomeKeysFor(s.muscle_group as MuscleGroup).length > 0)
+  if (trained.length === 0) return null
+
+  const max = Math.max(...trained.map((s) => s.sets))
+  if (max <= 0) return null
+
+  // Assign each anatome key to the strongest tier it earns across groups (a key
+  // shared by two groups takes the higher intensity). Track order for stable output.
+  const keyHex = new Map<string, string>()
+  const tierRank = new Map<string, number>(USAGE_TIER_HEXES.map((hex, i) => [hex, i]))
+  for (const s of trained) {
+    const hex = tierHexFor(s.sets / max)
+    for (const key of anatomeKeysFor(s.muscle_group as MuscleGroup)) {
+      const current = keyHex.get(key)
+      if (current == null || (tierRank.get(hex) ?? Infinity) < (tierRank.get(current) ?? Infinity)) {
+        keyHex.set(key, hex)
+      }
+    }
+  }
+
+  // Group keys by color, emitting segments in tier order (red → yellow).
+  const byHex = new Map<string, string[]>()
+  for (const [key, hex] of keyHex) {
+    const list = byHex.get(hex) ?? []
+    list.push(key)
+    byHex.set(hex, list)
+  }
+
+  const segments = USAGE_TIER_HEXES.filter((hex) => byHex.has(hex)).map(
+    (hex) => `${hex}:${unique(byHex.get(hex) as string[]).join(',')}`,
+  )
+  return segments.length > 0 ? segments.join('|') : null
+}
+
+// Compose the anatome generateImage URL for a user's muscle-usage stats.
+// Returns null when there is nothing to diagram (same signal as buildMuscleUsageLayers).
+export function buildMuscleUsageDiagramUrl(
+  stats: readonly MuscleUsageStat[],
+  options: MuscleDiagramUrlOptions = {},
+): string | null {
+  const layers = buildMuscleUsageLayers(stats)
+  if (layers == null) return null
+
+  const { view = 'dual', baseUrl = anatomeBaseUrl() } = options
+  const params = new URLSearchParams({ view, output: 'raw', layers })
+  return `${baseUrl.replace(/\/$/, '')}/generateImage?${params.toString()}`
+}
+
 export interface MuscleDiagramUrlOptions {
   view?: 'dual' | 'front' | 'back'
   baseUrl?: string

@@ -1,18 +1,50 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/lib/auth'
 import { Layout } from '@/components/Layout'
 import { Avatar } from '@/components/Avatar'
-import { Button } from '@/components/ui'
+import { Segmented } from '@/components/Segmented'
+import { MuscleUsageDiagram } from '@/components/MuscleUsageDiagram'
+import { Button, ErrorText, Spinner } from '@/components/ui'
 import { ChevronRight, LogOutIcon } from '@/components/icons'
 import { formatDate } from '@/lib/format'
 import { formatWeight, formatHeight } from '@/lib/units'
 import { ageFrom } from '@/lib/age'
+import { useMuscleGroups } from '@/hooks/useMuscleGroups'
 import {
   ACTIVITY_LEVEL_LABELS,
   FITNESS_GOAL_LABELS,
   GENDER_LABELS,
+  type DashboardWindow,
   type User,
 } from '@/types/api'
+
+// Matches the Progress dashboard's window control (PRD 0007) for consistency.
+const WINDOW_OPTIONS: { value: DashboardWindow; label: string }[] = [
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+  { value: 'quarter', label: '3M' },
+  { value: 'all', label: 'All' },
+]
+
+// The "Muscles trained" body diagram (PRD 0011): coverage colored by training
+// volume over a selectable window, so the athlete can visually check balance.
+function MusclesTrained() {
+  const [window, setWindow] = useState<DashboardWindow>('month')
+  const { data, isLoading, isError } = useMuscleGroups(window)
+
+  return (
+    <>
+      <div className="section-label">Muscles trained</div>
+      <div className="card stack">
+        <Segmented options={WINDOW_OPTIONS} value={window} onChange={setWindow} ariaLabel="Muscle-usage time window" />
+        {isLoading ? <Spinner /> : null}
+        {isError ? <ErrorText>Could not load your muscle activity.</ErrorText> : null}
+        {data ? <MuscleUsageDiagram groups={data.muscle_groups} /> : null}
+      </div>
+    </>
+  )
+}
 
 // One "label / value" row inside a grouped inset list.
 function Row({ label, value }: { label: string; value: string }) {
@@ -64,6 +96,8 @@ export function ProfilePage() {
         {user.username ? <div className="profile-email muted">@{user.username}</div> : null}
         <div className="profile-email muted">{user.email}</div>
       </div>
+
+      <MusclesTrained />
 
       {health.length > 0 ? (
         <>

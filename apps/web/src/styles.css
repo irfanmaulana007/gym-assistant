@@ -29,6 +29,14 @@
   --muscle-primary: #dc2626;
   --muscle-secondary: #f59e0b;
 
+  /* Muscle-usage intensity scale (yellow → orange → red) — MUST match the tier
+     hexes in src/lib/muscleDiagram.ts (USAGE_TIER_HEXES) so the legend gradient
+     and the rendered SVG never drift (PRD 0011). Ordered least → most trained. */
+  --muscle-usage-1: #fde047;
+  --muscle-usage-2: #f59e0b;
+  --muscle-usage-3: #f97316;
+  --muscle-usage-4: #dc2626;
+
   /* Spacing scale. */
   --sp-1: 4px;
   --sp-2: 8px;
@@ -907,3 +915,27 @@ h1, h2, h3, p { margin: 0; }
 @media (prefers-reduced-motion: reduce) {
   .muscle-diagram-skeleton { animation: none; }
 }
+
+/* Muscle-usage diagram (PRD 0011) — gradient legend reading Less → More. */
+.muscle-usage-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  max-width: 280px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.muscle-usage-legend-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    to right,
+    var(--muscle-usage-1),
+    var(--muscle-usage-2),
+    var(--muscle-usage-3),
+    var(--muscle-usage-4)
+  );
+}
+.muscle-usage-legend-label { flex: none; }
