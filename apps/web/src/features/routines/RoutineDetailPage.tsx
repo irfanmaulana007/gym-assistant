@@ -12,6 +12,7 @@ import { ExercisePickerSheet } from '@/features/exercises/ExercisePickerSheet'
 import { muscleGroupLabel } from '@/types/api'
 import { formatLastSet, formatTarget } from '@/lib/format'
 import { ApiError } from '@/api/client'
+import { ACTIVE_SESSION_KEY, useActiveSession } from '@/hooks/useActiveSession'
 
 export function RoutineDetailPage() {
   const { id = '' } = useParams()
@@ -66,11 +67,28 @@ export function RoutineDetailPage() {
     onError: (e) => setEditError(e instanceof ApiError ? e.message : 'Could not delete workout day'),
   })
 
+  // Surfaces the user's live session (if any). The API allows one at a time, so
+  // starting while one runs returns 409 — we then offer to resume it instead.
+  const { data: activeSession } = useActiveSession()
+
   const startMut = useMutation({
     mutationFn: () => sessionsApi.start(id),
-    onSuccess: (session) => navigate(`/sessions/${session.id}`),
-    onError: (e) => setError(e instanceof ApiError ? e.message : 'Could not start session'),
+    onSuccess: (session) => {
+      qc.invalidateQueries({ queryKey: ACTIVE_SESSION_KEY })
+      navigate(`/sessions/${session.id}`)
+    },
+    onError: (e) => {
+      setError(e instanceof ApiError ? e.message : 'Could not start session')
+      // A 409 means a session is already running — refetch so we can link to it.
+      if (e instanceof ApiError && e.status === 409) {
+        qc.invalidateQueries({ queryKey: ACTIVE_SESSION_KEY })
+      }
+    },
   })
+
+  const startConflict =
+    startMut.error instanceof ApiError &&
+    (startMut.error.status === 409 || startMut.error.code === 'conflict')
 
   function onSaveRoutine(e: FormEvent) {
     e.preventDefault()
@@ -180,14 +198,24 @@ export function RoutineDetailPage() {
 
       <div className="bottom-cta">
         {!sheetOpen && !editOpen && error ? <ErrorText>{error}</ErrorText> : null}
-        <Button
-          variant="primary"
-          block
-          disabled={startMut.isPending || exercises.length === 0}
-          onClick={() => startMut.mutate()}
-        >
-          {startMut.isPending ? 'Starting…' : 'Start workout'}
-        </Button>
+        {startConflict && activeSession ? (
+          <Button
+            variant="primary"
+            block
+            onClick={() => navigate(`/sessions/${activeSession.id}`)}
+          >
+            Resume current workout
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            block
+            disabled={startMut.isPending || exercises.length === 0}
+            onClick={() => startMut.mutate()}
+          >
+            {startMut.isPending ? 'Starting…' : 'Start workout'}
+          </Button>
+        )}
       </div>
     </Layout>
   )

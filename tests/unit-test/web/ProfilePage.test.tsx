@@ -21,7 +21,7 @@ const USER = {
 }
 
 // Route fetch by URL: the Profile screen loads both the current user and the
-// muscle-usage breakdown (PRD 0010). Everything else falls back to the user.
+// muscle-usage breakdown (PRD 0011). Everything else falls back to the user.
 function stubFetch(muscleGroups: unknown[] = []) {
   vi.stubGlobal(
     'fetch',
@@ -64,7 +64,7 @@ describe('ProfilePage', () => {
     // Email shows both as the header subtitle and in the account detail row.
     expect(screen.getAllByText('jane@example.com').length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: /logout/i })).toBeInTheDocument()
-    // The "Muscles trained" section (PRD 0010) renders with its window control.
+    // The "Muscles trained" section (PRD 0011) renders with its window control.
     expect(screen.getByText('Muscles trained')).toBeInTheDocument()
     expect(await screen.findByText('No muscles trained in this window yet.')).toBeInTheDocument()
   })

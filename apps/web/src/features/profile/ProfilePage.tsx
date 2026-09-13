@@ -27,7 +27,7 @@ const WINDOW_OPTIONS: { value: DashboardWindow; label: string }[] = [
   { value: 'all', label: 'All' },
 ]
 
-// The "Muscles trained" body diagram (PRD 0010): coverage colored by training
+// The "Muscles trained" body diagram (PRD 0011): coverage colored by training
 // volume over a selectable window, so the athlete can visually check balance.
 function MusclesTrained() {
   const [window, setWindow] = useState<DashboardWindow>('month')

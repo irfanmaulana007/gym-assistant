@@ -19,8 +19,8 @@ async function register(page: Page, email: string) {
 async function runSession(page: Page, routineName: string, weight: string) {
   await page.getByText(routineName).click()
   await page.getByRole('button', { name: /start workout/i }).click()
-  await expect(page.getByLabel('Bench Press weight')).toBeVisible()
-  await page.getByLabel('Bench Press weight').fill(weight)
+  await expect(page.getByLabel('Bench Press weight', { exact: true })).toBeVisible()
+  await page.getByLabel('Bench Press weight', { exact: true }).fill(weight)
   await page.getByLabel('Bench Press reps').fill('8')
   await page.getByRole('button', { name: /^log$/i }).click()
   await expect(page.getByText('Set 1')).toBeVisible()

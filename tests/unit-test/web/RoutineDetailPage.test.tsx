@@ -50,6 +50,7 @@ function renderPage() {
           <Routes>
             <Route path="/routines/:id" element={<RoutineDetailPage />} />
             <Route path="/workout" element={<div>Workouts home</div>} />
+            <Route path="/sessions/:sid" element={<div>Session screen</div>} />
           </Routes>
         </AuthProvider>
       </MemoryRouter>
@@ -139,6 +140,49 @@ describe('RoutineDetailPage', () => {
     renderPage()
     expect(await screen.findByText('Bench Press')).toBeInTheDocument()
     expect(await screen.findByText(/Last 62\.5kg × 10/)).toBeInTheDocument()
+  })
+
+  it('offers to resume the running session when Start returns a 409 conflict', async () => {
+    localStorage.setItem('gym.token', 'tok')
+    const activeSession = {
+      id: 'live-session',
+      user_id: 'u1',
+      routine_id: 'r1',
+      status: 'active',
+      performed_at: '2026-09-12T04:57:37Z',
+      started_at: '2026-09-12T04:57:37Z',
+      ended_at: null,
+      total_duration_seconds: null,
+      active_duration_seconds: null,
+      paused_duration_seconds: null,
+      muscle_groups: [],
+      notes: '',
+      metadata: {},
+    }
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url)
+      const method = init?.method ?? 'GET'
+      if (u.includes('/api/v1/auth/me')) return jsonResponse(200, { id: 'u1', email: 'a@b.c', display_name: 'A' })
+      if (u.includes('/api/v1/sessions') && method === 'GET') return jsonResponse(200, { sessions: [activeSession] })
+      // POST /routines/r1/sessions — the API rejects starting a second session.
+      if (u.includes('/sessions') && method === 'POST') {
+        return jsonResponse(409, {
+          error: { code: 'conflict', message: 'you already have an active or paused session; finish it before starting another' },
+        })
+      }
+      return jsonResponse(200, ROUTINE)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    await screen.findByText('Bench Press')
+
+    await userEvent.click(screen.getByRole('button', { name: /start workout/i }))
+
+    // The conflict swaps the CTA for a resume action that jumps to the session.
+    const resume = await screen.findByRole('button', { name: /resume current workout/i })
+    await userEvent.click(resume)
+    expect(await screen.findByText('Session screen')).toBeInTheDocument()
   })
 
   it('omits the hint when an exercise has no history', async () => {

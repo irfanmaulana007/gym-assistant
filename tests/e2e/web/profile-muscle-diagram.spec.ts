@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 
-// E2E: PRD 0010 — the Profile screen's "Muscles trained" section renders a
+// E2E: PRD 0011 — the Profile screen's "Muscles trained" section renders a
 // body diagram colored by training volume. Register → run a chest workout →
 // open Profile → the diagram loads with the trained muscle in the layers, and
 // switching the window keeps it working. No external network: the anatome
@@ -28,8 +28,8 @@ async function register(page: Page, tag: string) {
 async function runSession(page: Page, routineName: string, weight: string) {
   await page.getByText(routineName).click()
   await page.getByRole('button', { name: /start workout/i }).click()
-  await expect(page.getByLabel('Bench Press weight')).toBeVisible()
-  await page.getByLabel('Bench Press weight').fill(weight)
+  await expect(page.getByLabel('Bench Press weight', { exact: true })).toBeVisible()
+  await page.getByLabel('Bench Press weight', { exact: true }).fill(weight)
   await page.getByLabel('Bench Press reps').fill('8')
   await page.getByRole('button', { name: /^log$/i }).click()
   await expect(page.getByText('Set 1')).toBeVisible()

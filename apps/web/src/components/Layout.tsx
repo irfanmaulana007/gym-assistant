@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { NavBar, type BackTarget } from './NavBar'
 import { BottomNav } from './BottomNav'
+import { ResumeSessionBanner } from './ResumeSessionBanner'
 
 // App shell: native top nav bar + single-column main area, with an optional
 // bottom tab bar for the top-level screens. `intro` renders an optional
@@ -44,6 +45,11 @@ export function Layout({
         {intro}
         {children}
       </main>
+      {/* Persistent resume-workout pill, on the top-level tab screens where the
+          user navigates away from a running session (it floats above the tab
+          bar). It hides itself when nothing is running or when already on the
+          session page. */}
+      {bottomNav ? <ResumeSessionBanner /> : null}
       {bottomNav ? <BottomNav /> : null}
     </div>
   )

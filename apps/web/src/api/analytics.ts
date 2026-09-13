@@ -21,7 +21,7 @@ export const analyticsApi = {
   },
 
   // Focused per-muscle-group breakdown — backs the profile muscle-usage diagram
-  // (PRD 0010) without pulling the whole dashboard payload.
+  // (PRD 0011) without pulling the whole dashboard payload.
   muscleGroups(window: DashboardWindow = 'month') {
     const qs = new URLSearchParams({ window, tz: localTz() })
     return request<MuscleGroupsResult>(`/api/v1/analytics/muscle-groups?${qs.toString()}`)

@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { MuscleUsageDiagram } from '@/components/MuscleUsageDiagram'
 import type { MuscleGroupStat } from '@/types/api'
 
-// PRD 0010 — the profile muscle-usage diagram is additive on top of the data: it
+// PRD 0011 — the profile muscle-usage diagram is additive on top of the data: it
 // renders the anatome image + a Less→More legend when muscles are trained, and a
 // quiet empty note when there is nothing to show or the image fails to load.
 

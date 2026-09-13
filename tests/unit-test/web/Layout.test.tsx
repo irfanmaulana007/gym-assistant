@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { Layout } from '@/components/Layout'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/lib/auth'
+import { Layout } from '@/components/Layout'
 
 // The top nav bar is native-app chrome for CHILD screens only. Top-level tab
 // screens and full-screen flows pass no `back` and carry their own in-body
@@ -13,14 +14,19 @@ import { AuthProvider } from '@/lib/auth'
 
 function renderLayout(props: Partial<Parameters<typeof Layout>[0]> = {}) {
   const { title = 'Screen', children = <p>body</p>, ...rest } = props
+  // Layout renders the ResumeSessionBanner on bottom-nav screens, which reads
+  // auth + query context; provide both (no token → the query stays disabled).
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <MemoryRouter>
-      <AuthProvider>
-        <Layout title={title} {...rest}>
-          {children}
-        </Layout>
-      </AuthProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>
+        <AuthProvider>
+          <Layout title={title} {...rest}>
+            {children}
+          </Layout>
+        </AuthProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
 }
 

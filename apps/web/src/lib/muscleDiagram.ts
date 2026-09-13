@@ -74,7 +74,7 @@ export function buildMuscleLayers(
   return segments.join('|')
 }
 
-// --- Muscle-usage diagram (PRD 0010) ---
+// --- Muscle-usage diagram (PRD 0011) ---
 //
 // The profile diagram colors each muscle group by HOW MUCH it was trained, on a
 // yellow → orange → red gradient relative to the user's own most-trained group.

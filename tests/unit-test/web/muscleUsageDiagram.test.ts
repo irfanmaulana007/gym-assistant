@@ -6,7 +6,7 @@ import {
   type MuscleUsageStat,
 } from '@/lib/muscleDiagram'
 
-// PRD 0010 — the profile muscle-usage diagram colors each group by its share of
+// PRD 0011 — the profile muscle-usage diagram colors each group by its share of
 // the user's most-trained group (sets), on a yellow → orange → red gradient.
 // These lock the tier bucketing and the layers string so the anatome URL is
 // deterministic.

@@ -340,7 +340,7 @@ export interface Dashboard {
 }
 
 /** Focused per-muscle-group breakdown from GET /analytics/muscle-groups —
- * lighter than the full dashboard for the profile muscle-usage diagram (PRD 0010). */
+ * lighter than the full dashboard for the profile muscle-usage diagram (PRD 0011). */
 export interface MuscleGroupsResult {
   window: AnalyticsWindow
   volume_unit: string

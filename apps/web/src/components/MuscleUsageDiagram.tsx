@@ -20,7 +20,7 @@ function altText(groups: MuscleGroupStat[]): string {
 
 // Renders anatome's dual-view body SVG colored by how much each muscle group was
 // trained, on a yellow → orange → red gradient relative to the user's own
-// most-trained group (PRD 0010). Reuses the muscle-diagram figure/skeleton styles
+// most-trained group (PRD 0011). Reuses the muscle-diagram figure/skeleton styles
 // from PRD 0009. Renders an empty note when nothing maps or the image fails.
 export function MuscleUsageDiagram({ groups }: MuscleUsageDiagramProps) {
   const [loaded, setLoaded] = useState(false)

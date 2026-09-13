@@ -1,4 +1,4 @@
-# PRD 0010 — Muscle-Usage Body Diagram on the Profile Screen
+# PRD 0011 — Muscle-Usage Body Diagram on the Profile Screen
 
 | Field | Value |
 |-------|-------|

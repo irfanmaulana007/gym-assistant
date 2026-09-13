@@ -36,7 +36,7 @@ test('create routine, add exercise, run a session, see summary', async ({ page }
   await expect(page.getByRole('button', { name: /stop/i })).toBeVisible()
 
   // Log a set: 60kg × 8.
-  await page.getByLabel('Bench Press weight').fill('60')
+  await page.getByLabel('Bench Press weight', { exact: true }).fill('60')
   await page.getByLabel('Bench Press reps').fill('8')
   await page.getByRole('button', { name: /^log$/i }).click()
   await expect(page.getByText('Set 1')).toBeVisible()
@@ -76,7 +76,7 @@ test("shows the previous session's weight as the target to beat", async ({ page 
   // First session: log 60kg × 8 and save it.
   await page.getByRole('button', { name: /start workout/i }).click()
   await expect(page.getByRole('button', { name: /stop/i })).toBeVisible()
-  await page.getByLabel('Bench Press weight').fill('60')
+  await page.getByLabel('Bench Press weight', { exact: true }).fill('60')
   await page.getByLabel('Bench Press reps').fill('8')
   await page.getByRole('button', { name: /^log$/i }).click()
   await expect(page.getByText('Set 1')).toBeVisible()
