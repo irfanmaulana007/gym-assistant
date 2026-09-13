@@ -338,3 +338,11 @@ export interface Dashboard {
   records: PersonalRecord[]
   calendar: CalendarDay[]
 }
+
+/** Focused per-muscle-group breakdown from GET /analytics/muscle-groups —
+ * lighter than the full dashboard for the profile muscle-usage diagram (PRD 0010). */
+export interface MuscleGroupsResult {
+  window: AnalyticsWindow
+  volume_unit: string
+  muscle_groups: MuscleGroupStat[]
+}
