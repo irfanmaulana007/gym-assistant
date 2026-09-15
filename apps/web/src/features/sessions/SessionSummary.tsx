@@ -2,7 +2,8 @@ import { Link } from 'react-router-dom'
 import { formatDuration } from '@/lib/format'
 import { sessionMuscleUsage } from '@/lib/sessionMuscles'
 import { MuscleUsageDiagram } from '@/components/MuscleUsageDiagram'
-import { muscleGroupLabel, type WorkoutSession } from '@/types/api'
+import { Collapsible } from '@/components/Collapsible'
+import { muscleGroupLabel, type SessionExercise, type WorkoutSession } from '@/types/api'
 
 // Post-workout summary — the same shape a future dashboard card will use
 // (PRD 0002 §8). Shown both right after finishing and when reopening a past
@@ -66,14 +67,10 @@ export function SessionSummary({ session }: { session: WorkoutSession }) {
 
       <div className="card stack">
         <div className="section-label">Exercises</div>
-        <ul className="stack" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        <ul className="stack" style={{ listStyle: 'none', margin: 0, padding: 0, gap: 'var(--sp-3)' }}>
           {exercises.map((e) => (
-            <li key={e.id} className="row-between">
-              <span>{e.name_snapshot}</span>
-              <span className="muted small">
-                {e.sets_completed} set{e.sets_completed === 1 ? '' : 's'}
-                {e.top_set_weight != null ? ` · top ${e.top_set_weight}kg` : ''}
-              </span>
+            <li key={e.id}>
+              <SummaryExerciseRow exercise={e} />
             </li>
           ))}
         </ul>
@@ -81,5 +78,43 @@ export function SessionSummary({ session }: { session: WorkoutSession }) {
 
       <Link to="/workout" className="btn btn-primary btn-block">Done</Link>
     </div>
+  )
+}
+
+// One exercise in the summary. Collapsed it reads as a single line
+// (name · sets · top set); expanded it reveals every logged set so weights and
+// reps that varied set-to-set are visible. Exercises with no logged sets stay
+// as a plain, non-interactive row.
+function SummaryExerciseRow({ exercise }: { exercise: SessionExercise }) {
+  const entries = exercise.entries ?? []
+  const summary = (
+    <span className="row-between" style={{ gap: 'var(--sp-3)' }}>
+      <span className="grow">{exercise.name_snapshot}</span>
+      <span className="muted small">
+        {exercise.sets_completed} set{exercise.sets_completed === 1 ? '' : 's'}
+        {exercise.top_set_weight != null ? ` · top ${exercise.top_set_weight}kg` : ''}
+      </span>
+    </span>
+  )
+
+  if (entries.length === 0) {
+    // No sets to reveal — align with the expandable rows by matching the
+    // chevron's width so names line up.
+    return <span style={{ paddingLeft: 'calc(20px + var(--sp-2))', display: 'block' }}>{summary}</span>
+  }
+
+  return (
+    <Collapsible ariaLabel={`Show sets for ${exercise.name_snapshot}`} summary={summary}>
+      {entries.map((entry) => (
+        <div key={entry.id} className="entry-row">
+          <span className="idx">Set {entry.entry_number}</span>
+          <span className="val">
+            {entry.duration_seconds != null
+              ? formatDuration(entry.duration_seconds)
+              : `${entry.weight ?? '—'}${entry.weight_unit ?? ''} × ${entry.reps ?? '—'}`}
+          </span>
+        </div>
+      ))}
+    </Collapsible>
   )
 }

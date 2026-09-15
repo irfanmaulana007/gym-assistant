@@ -699,6 +699,32 @@ h1, h2, h3, p { margin: 0; }
 .entry-row-editing { flex-wrap: wrap; gap: var(--sp-2); }
 .entry-row-editing .input { flex: 1 1 64px; min-width: 0; }
 
+/* Collapsible disclosure — expandable rows that reveal per-set detail
+   (post-workout summary, exercise history). */
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.collapsible-summary { flex: 1; min-width: 0; }
+.collapsible-chevron { transition: transform var(--dur-fast) var(--ease); }
+.collapsible-chevron[data-open='true'] { transform: rotate(90deg); }
+.collapsible-body {
+  margin-top: var(--sp-2);
+  padding-left: calc(20px + var(--sp-2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
 /* Empty state. */
 .empty {
   text-align: center;

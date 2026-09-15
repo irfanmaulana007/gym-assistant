@@ -103,6 +103,42 @@ describe('ExerciseHistoryPage', () => {
     expect(screen.getByText(/Volume 1,020/)).toBeInTheDocument()
   })
 
+  it('expands a history session to reveal each logged set', async () => {
+    const detail = {
+      ...HISTORY_DETAIL,
+      sessions: [
+        {
+          session_id: 's1',
+          performed_at: '2026-09-02T09:00:00Z',
+          top_set: { weight: 62.5, weight_unit: 'kg', reps: 6 },
+          total_volume: 1500,
+          sets: [
+            { set_number: 1, weight: 60, reps: 8 },
+            { set_number: 2, weight: 62.5, reps: 6 },
+            { set_number: 3, weight: 57.5, reps: 8 },
+          ],
+        },
+      ],
+    }
+    const fetchMock = vi.fn(async () => jsonResponse(200, detail))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    await screen.findAllByText('Bench Press')
+    await userEvent.click(screen.getByRole('tab', { name: 'History' }))
+
+    // Collapsed: the session summary line shows, individual sets do not.
+    expect(screen.getByText(/Volume 1,500 · 3 sets/)).toBeInTheDocument()
+    expect(screen.queryByText('60kg × 8')).not.toBeInTheDocument()
+
+    // Expanding the session reveals every set, so a set that differs from the
+    // top set is visible.
+    await userEvent.click(screen.getByRole('button', { name: /show sets from/i }))
+    expect(screen.getByText('60kg × 8')).toBeInTheDocument()
+    expect(screen.getByText('57.5kg × 8')).toBeInTheDocument()
+    expect(screen.getByText('Set 3')).toBeInTheDocument()
+  })
+
   it('edits the exercise with values pre-filled from the current exercise (PATCH round-trip)', async () => {
     const calls: { url: string; method: string; body: unknown }[] = []
     const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
