@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth'
 import { Layout } from '@/components/Layout'
 import { Avatar } from '@/components/Avatar'
 import { Segmented } from '@/components/Segmented'
+import { Switch } from '@/components/Switch'
 import { MuscleUsageDiagram } from '@/components/MuscleUsageDiagram'
 import { Button, ErrorText, Spinner } from '@/components/ui'
 import { ChevronRight, LogOutIcon } from '@/components/icons'
@@ -31,16 +32,28 @@ const WINDOW_OPTIONS: { value: DashboardWindow; label: string }[] = [
 // volume over a selectable window, so the athlete can visually check balance.
 function MusclesTrained() {
   const [window, setWindow] = useState<DashboardWindow>('month')
+  // Default to excluding cardio, matching the session heatmap (PRD 0015). The
+  // analytics diagram is primary-muscle only and cardio has no anatomical color,
+  // so this is a no-op on the body image today — it filters the `cardio` row for
+  // consistency, and the toggle only shows when the window actually has cardio.
+  const [includeCardio, setIncludeCardio] = useState(false)
   const { data, isLoading, isError } = useMuscleGroups(window)
+
+  const groups = data?.muscle_groups ?? []
+  const hasCardio = groups.some((g) => g.muscle_group === 'cardio')
+  const shown = includeCardio ? groups : groups.filter((g) => g.muscle_group !== 'cardio')
 
   return (
     <>
       <div className="section-label">Muscles trained</div>
       <div className="card stack">
         <Segmented options={WINDOW_OPTIONS} value={window} onChange={setWindow} ariaLabel="Muscle-usage time window" />
+        {hasCardio ? (
+          <Switch label="Include cardio" checked={includeCardio} onChange={setIncludeCardio} />
+        ) : null}
         {isLoading ? <Spinner /> : null}
         {isError ? <ErrorText>Could not load your muscle activity.</ErrorText> : null}
-        {data ? <MuscleUsageDiagram groups={data.muscle_groups} /> : null}
+        {data ? <MuscleUsageDiagram groups={shown} /> : null}
       </div>
     </>
   )

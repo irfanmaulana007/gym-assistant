@@ -1,26 +1,48 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { formatDuration } from '@/lib/format'
-import { sessionMuscleUsage } from '@/lib/sessionMuscles'
+import { formatDate, formatDuration } from '@/lib/format'
+import { isCardioExercise, sessionMuscleUsage } from '@/lib/sessionMuscles'
 import { MuscleUsageDiagram } from '@/components/MuscleUsageDiagram'
 import { Collapsible } from '@/components/Collapsible'
+import { Switch } from '@/components/Switch'
 import { muscleGroupLabel, type SessionExercise, type WorkoutSession } from '@/types/api'
 
-// Post-workout summary — the same shape a future dashboard card will use
-// (PRD 0002 §8). Shown both right after finishing and when reopening a past
-// session from the History tab (PRD 0013).
-export function SessionSummary({ session }: { session: WorkoutSession }) {
+// Post-workout summary. `variant` distinguishes the two surfaces that render it
+// on the same `/sessions/:id` route (PRD 0015):
+//  - 'complete' — right after finishing: celebratory intro + a "Done" CTA.
+//  - 'history'  — reopened from the History tab: a quiet date line, no CTA.
+export function SessionSummary({
+  session,
+  variant = 'complete',
+}: {
+  session: WorkoutSession
+  variant?: 'complete' | 'history'
+}) {
   const exercises = session.exercises ?? []
   const totalSets = exercises.reduce((n, e) => n + (e.sets_completed ?? 0), 0)
   const totalVolume = exercises.reduce((n, e) => n + (e.total_volume ?? 0), 0)
   const timedSeconds = exercises.reduce((n, e) => n + (e.total_duration_seconds ?? 0), 0)
-  const muscleUsage = sessionMuscleUsage(session)
+
+  // The heatmap answers "what did my lifting hit?" — cardio credits its
+  // secondary muscles too, so offer to exclude it. Only worth showing the
+  // toggle when this session actually has cardio (PRD 0015). Defaults to
+  // excluding cardio.
+  const hasCardio = exercises.some(isCardioExercise)
+  const [includeCardio, setIncludeCardio] = useState(false)
+  const muscleUsage = sessionMuscleUsage(session, { includeCardio })
 
   return (
     <div className="stack" style={{ gap: 'var(--sp-4)' }}>
-      <div className="page-intro center">
-        <h2>Nice work! 🎉</h2>
-        <p>Here's how your session went.</p>
-      </div>
+      {variant === 'complete' ? (
+        <div className="page-intro center">
+          <h2>Nice work! 🎉</h2>
+          <p>Here's how your session went.</p>
+        </div>
+      ) : (
+        <div className="page-intro">
+          <p className="muted">{formatDate(session.performed_at)}</p>
+        </div>
+      )}
 
       <div className="stat-grid">
         <div className="stat">
@@ -53,6 +75,9 @@ export function SessionSummary({ session }: { session: WorkoutSession }) {
 
       <div className="card stack">
         <div className="section-label">Muscle groups worked</div>
+        {hasCardio ? (
+          <Switch label="Include cardio" checked={includeCardio} onChange={setIncludeCardio} />
+        ) : null}
         <MuscleUsageDiagram groups={muscleUsage} />
         <div className="row wrap">
           {session.muscle_groups.length > 0 ? (
@@ -76,7 +101,9 @@ export function SessionSummary({ session }: { session: WorkoutSession }) {
         </ul>
       </div>
 
-      <Link to="/workout" className="btn btn-primary btn-block">Done</Link>
+      {variant === 'complete' ? (
+        <Link to="/workout" className="btn btn-primary btn-block">Done</Link>
+      ) : null}
     </div>
   )
 }

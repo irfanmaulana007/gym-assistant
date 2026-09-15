@@ -7,9 +7,20 @@
 // stays meaningful within one session.
 
 import type { MuscleUsageStat } from './muscleDiagram'
-import type { WorkoutSession } from '@/types/api'
+import type { SessionExercise, WorkoutSession } from '@/types/api'
 
-export function sessionMuscleUsage(session: WorkoutSession): MuscleUsageStat[] {
+// Cardio is timed work, not lifting — it shouldn't color the strength heatmap.
+// The `cardio` primary group is the same signal the analytics landmark and the
+// dashboard's cardio row use (PRD 0015).
+export function isCardioExercise(ex: Pick<SessionExercise, 'primary_muscle_group'>): boolean {
+  return ex.primary_muscle_group === 'cardio'
+}
+
+export function sessionMuscleUsage(
+  session: WorkoutSession,
+  opts?: { includeCardio?: boolean },
+): MuscleUsageStat[] {
+  const includeCardio = opts?.includeCardio ?? true
   const byGroup = new Map<string, number>()
   const add = (group: string, sets: number) => {
     if (sets <= 0) return
@@ -17,6 +28,9 @@ export function sessionMuscleUsage(session: WorkoutSession): MuscleUsageStat[] {
   }
 
   for (const ex of session.exercises ?? []) {
+    // Skipping the whole exercise drops both its primary and secondary credit,
+    // so a cardio bout can't color real muscles when cardio is excluded.
+    if (!includeCardio && isCardioExercise(ex)) continue
     const sets = ex.sets_completed ?? 0
     add(ex.primary_muscle_group, sets)
     for (const g of ex.secondary_muscle_groups ?? []) add(g, sets)

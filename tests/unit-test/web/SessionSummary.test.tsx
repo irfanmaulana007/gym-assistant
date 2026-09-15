@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { SessionSummary } from '@/features/sessions/SessionSummary'
+import { formatDate } from '@/lib/format'
 import type { SetEntry, SessionExercise, WorkoutSession } from '@/types/api'
 
 // A logged set with sensible defaults for the fields the summary ignores.
@@ -75,10 +76,10 @@ function session(exercises: SessionExercise[]): WorkoutSession {
   }
 }
 
-function renderSummary(s: WorkoutSession) {
+function renderSummary(s: WorkoutSession, variant?: 'complete' | 'history') {
   return render(
     <MemoryRouter>
-      <SessionSummary session={s} />
+      <SessionSummary session={s} variant={variant} />
     </MemoryRouter>,
   )
 }
@@ -120,5 +121,64 @@ describe('SessionSummary — per-set expand/collapse', () => {
 
     expect(screen.getByText('Incline Press')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /show sets for incline press/i })).not.toBeInTheDocument()
+  })
+})
+
+// PRD 0015 — the same component powers two surfaces on /sessions/:id.
+describe('SessionSummary — complete vs history variant', () => {
+  const bench = () => exercise({ name_snapshot: 'Bench Press', sets_completed: 3 })
+
+  it('shows the encouragement and a Done button in the complete variant', () => {
+    renderSummary(session([bench()]), 'complete')
+    expect(screen.getByText('Nice work! 🎉')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Done' })).toBeInTheDocument()
+  })
+
+  it('defaults to the complete variant', () => {
+    renderSummary(session([bench()]))
+    expect(screen.getByText('Nice work! 🎉')).toBeInTheDocument()
+  })
+
+  it('hides the encouragement and Done button and shows the date in the history variant', () => {
+    renderSummary(session([bench()]), 'history')
+    expect(screen.queryByText('Nice work! 🎉')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Done' })).not.toBeInTheDocument()
+    // The performed_at date stands in as the quiet context line.
+    expect(screen.getByText(formatDate('2026-09-10T10:00:00Z'))).toBeInTheDocument()
+  })
+})
+
+describe('SessionSummary — cardio toggle', () => {
+  it('does not show the toggle when the session has no cardio', () => {
+    renderSummary(session([exercise({ primary_muscle_group: 'chest', sets_completed: 3 })]))
+    expect(screen.queryByRole('switch', { name: /include cardio/i })).not.toBeInTheDocument()
+  })
+
+  it('excludes cardio from the heatmap by default and adds it back when toggled on', async () => {
+    const s = session([
+      exercise({ id: 'sx-a', name_snapshot: 'Bench', primary_muscle_group: 'chest', sets_completed: 3 }),
+      exercise({
+        id: 'sx-b',
+        name_snapshot: 'Treadmill',
+        primary_muscle_group: 'cardio',
+        secondary_muscle_groups: ['quads'],
+        measurement_type: 'duration',
+        sets_completed: 2,
+      }),
+    ])
+    renderSummary(s)
+
+    const toggle = screen.getByRole('switch', { name: /include cardio/i })
+    // Default: cardio excluded — its "legs" secondary is absent from the diagram.
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    const before = screen.getByRole('img').getAttribute('src') ?? ''
+    expect(before).not.toContain('quadriceps')
+
+    await userEvent.click(toggle)
+
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    const after = screen.getByRole('img').getAttribute('src') ?? ''
+    // Including cardio adds its "legs" credit — the anatome layers now cover it.
+    expect(after).toContain('quadriceps')
   })
 })

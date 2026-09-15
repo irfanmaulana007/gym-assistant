@@ -2,6 +2,8 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { sessionsApi } from '@/api/sessions'
+import { routinesApi } from '@/api/routines'
+import { routinesById, sessionGroupLabel } from '@/lib/sessionGroup'
 import { Layout } from '@/components/Layout'
 import { Sheet } from '@/components/Sheet'
 import { Button, ErrorText, Field, Spinner } from '@/components/ui'
@@ -23,6 +25,9 @@ export function ActiveSessionPage() {
     queryFn: () => sessionsApi.get(id),
     refetchInterval: (q) => (q.state.data?.status === 'active' ? 15_000 : false),
   })
+  // Cached routines name a completed session's workout group for the history
+  // title (same source as the History list) — falls back to "Workout".
+  const { data: routines } = useQuery({ queryKey: ['routines'], queryFn: routinesApi.list })
 
   const [adHocName, setAdHocName] = useState('')
   const [error, setError] = useState('')
@@ -97,11 +102,25 @@ export function ActiveSessionPage() {
   }
 
   if (session.status === 'completed') {
+    // Two surfaces share this route (PRD 0015). If the user just tapped "Save
+    // workout" here, `completeMut.isSuccess` is set — show the celebratory
+    // "Workout complete" summary. Otherwise this is a past session opened from
+    // History (or a reload/deep-link): title it with the workout group + date,
+    // no encouragement, no "Done".
+    const justFinished = completeMut.isSuccess
     // Back returns to wherever the user came from — the History list when opened
     // from there, or the Workout screen right after finishing (PRD 0013).
+    if (justFinished) {
+      return (
+        <Layout title="Workout complete" back={-1}>
+          <SessionSummary session={session} variant="complete" />
+        </Layout>
+      )
+    }
+    const groupLabel = sessionGroupLabel(session, routinesById(routines))
     return (
-      <Layout title="Workout complete" back={-1}>
-        <SessionSummary session={session} />
+      <Layout title={groupLabel} back={-1}>
+        <SessionSummary session={session} variant="history" />
       </Layout>
     )
   }

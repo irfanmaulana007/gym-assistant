@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { sessionMuscleUsage } from '@/lib/sessionMuscles'
+import { isCardioExercise, sessionMuscleUsage } from '@/lib/sessionMuscles'
 import type { SessionExercise, WorkoutSession } from '@/types/api'
 
 // PRD 0013 — the session summary's body heatmap is driven by sets-per-muscle.
@@ -86,5 +86,46 @@ describe('sessionMuscleUsage', () => {
 
   it('returns an empty list for a session with no exercises', () => {
     expect(sessionMuscleUsage(session([]))).toEqual([])
+  })
+
+  // PRD 0015 — the "Include cardio" toggle. Excluding cardio drops the whole
+  // cardio exercise, so it can't color real muscles through its secondary groups.
+  describe('includeCardio', () => {
+    const withCardio = () =>
+      session([
+        exercise({ primary_muscle_group: 'chest', secondary_muscle_groups: ['triceps'], sets_completed: 4 }),
+        exercise({ primary_muscle_group: 'cardio', secondary_muscle_groups: ['quads'], measurement_type: 'duration', sets_completed: 2 }),
+      ])
+
+    it('keeps cardio and its secondary credit by default', () => {
+      const usage = sessionMuscleUsage(withCardio())
+      expect(setsFor(usage, 'cardio')).toBe(2)
+      expect(setsFor(usage, 'quads')).toBe(2)
+      expect(setsFor(usage, 'chest')).toBe(4)
+    })
+
+    it('keeps cardio when includeCardio is true', () => {
+      const usage = sessionMuscleUsage(withCardio(), { includeCardio: true })
+      expect(setsFor(usage, 'quads')).toBe(2)
+    })
+
+    it('drops the cardio exercise entirely when includeCardio is false', () => {
+      const usage = sessionMuscleUsage(withCardio(), { includeCardio: false })
+      // cardio + its secondary "legs" credit are both gone; strength stays.
+      expect(setsFor(usage, 'cardio')).toBe(0)
+      expect(setsFor(usage, 'quads')).toBe(0)
+      expect(setsFor(usage, 'chest')).toBe(4)
+      expect(setsFor(usage, 'triceps')).toBe(4)
+    })
+  })
+})
+
+describe('isCardioExercise', () => {
+  it('flags exercises whose primary group is cardio', () => {
+    expect(isCardioExercise(exercise({ primary_muscle_group: 'cardio' }))).toBe(true)
+  })
+
+  it('does not flag a strength exercise', () => {
+    expect(isCardioExercise(exercise({ primary_muscle_group: 'chest' }))).toBe(false)
   })
 })
