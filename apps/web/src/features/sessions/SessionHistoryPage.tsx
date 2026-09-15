@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { sessionsApi } from '@/api/sessions'
+import { routinesApi } from '@/api/routines'
 import { Layout } from '@/components/Layout'
 import { ErrorText, Spinner } from '@/components/ui'
 import { ChevronRight } from '@/components/icons'
 import { formatDate, formatDuration } from '@/lib/format'
+import { routinesById, sessionGroupLabel } from '@/lib/sessionGroup'
 import { muscleGroupLabel, type WorkoutSession } from '@/types/api'
 
 // Browsable history of completed workouts (PRD 0013). Each row opens the same
@@ -16,6 +18,14 @@ export function SessionHistoryPage() {
     queryKey: ['sessions'],
     queryFn: () => sessionsApi.list(50),
   })
+  // Reuse the cached routines list to name each session's workout group
+  // (Push / Pull / Legs …). Sessions render even before this resolves — the
+  // label falls back to a neutral "Workout" until the routines arrive.
+  const { data: routines } = useQuery({
+    queryKey: ['routines'],
+    queryFn: routinesApi.list,
+  })
+  const byId = routinesById(routines)
 
   const intro = (
     <div className="page-intro">
@@ -43,7 +53,7 @@ export function SessionHistoryPage() {
         ) : (
           <ul className="list-grouped">
             {completed.map((s) => (
-              <SessionRow key={s.id} session={s} />
+              <SessionRow key={s.id} session={s} groupLabel={sessionGroupLabel(s, byId)} />
             ))}
           </ul>
         )
@@ -52,13 +62,15 @@ export function SessionHistoryPage() {
   )
 }
 
-function SessionRow({ session }: { session: WorkoutSession }) {
+function SessionRow({ session, groupLabel }: { session: WorkoutSession; groupLabel: string }) {
   return (
     <li>
       <Link className="nav-row" to={`/sessions/${session.id}`}>
         <div className="grow" style={{ minWidth: 0 }}>
-          <div className="row-title">{formatDate(session.performed_at)}</div>
+          <div className="row-title">{groupLabel}</div>
           <div className="row-sub row wrap" style={{ gap: 'var(--sp-2)' }}>
+            <span className="muted">{formatDate(session.performed_at)}</span>
+            <span className="muted">·</span>
             <span className="muted">{formatDuration(session.active_duration_seconds ?? 0)} active</span>
             {session.muscle_groups.slice(0, 4).map((g) => (
               <span key={g} className="badge">{muscleGroupLabel(g)}</span>

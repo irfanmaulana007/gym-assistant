@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/lib/auth'
@@ -31,8 +31,15 @@ function sessionRow(partial: Record<string, unknown>) {
   }
 }
 
-function renderWith(sessions: unknown[]) {
-  vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(200, { sessions })) as unknown as typeof fetch)
+function renderWith(sessions: unknown[], routines: unknown[] = [{ id: 'r', name: 'Push Day' }]) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      if (url.includes('/routines')) return jsonResponse(200, { routines })
+      return jsonResponse(200, { sessions })
+    }) as unknown as typeof fetch,
+  )
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
@@ -63,6 +70,22 @@ describe('SessionHistoryPage', () => {
     expect(sessionLinks(container)[0]).toHaveAttribute('href', '/sessions/s1')
     expect(screen.getByText('Chest')).toBeInTheDocument()
     expect(screen.getByText('Triceps')).toBeInTheDocument()
+  })
+
+  it('titles each row with the workout group (routine) name', async () => {
+    const { container } = renderWith(
+      [sessionRow({ id: 's1', routine_id: 'push' })],
+      [{ id: 'push', name: 'Push Day' }],
+    )
+    await waitFor(() => expect(sessionLinks(container)).toHaveLength(1))
+    expect(screen.getByText('Push Day')).toBeInTheDocument()
+  })
+
+  it('falls back to "Workout" when the session has no routine', async () => {
+    const { container } = renderWith([sessionRow({ id: 's1', routine_id: null })], [])
+    await waitFor(() => expect(sessionLinks(container)).toHaveLength(1))
+    // Scope to the row — "Workout" is also the bottom-nav tab label.
+    expect(within(sessionLinks(container)[0]).getByText('Workout')).toBeInTheDocument()
   })
 
   it('filters out non-completed sessions and sorts most-recent first', async () => {
