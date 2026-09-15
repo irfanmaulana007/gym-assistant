@@ -64,6 +64,8 @@ test('finish a session, see the heatmap, then reopen it from History', async ({ 
   await expect(page.getByRole('heading', { name: 'History' })).toBeVisible()
   const row = page.getByRole('link').filter({ hasText: 'Chest' })
   await expect(row).toBeVisible()
+  // The row is titled with the workout group (the routine it was run from).
+  await expect(row).toContainText('Push Day')
 
   // Opening the history entry shows the same summary + heatmap.
   await row.click()
