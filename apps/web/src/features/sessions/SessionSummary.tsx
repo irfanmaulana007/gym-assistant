@@ -6,7 +6,7 @@ import { muscleGroupLabel, type WorkoutSession } from '@/types/api'
 
 // Post-workout summary — the same shape a future dashboard card will use
 // (PRD 0002 §8). Shown both right after finishing and when reopening a past
-// session from the History tab (PRD 0012).
+// session from the History tab (PRD 0013).
 export function SessionSummary({ session }: { session: WorkoutSession }) {
   const exercises = session.exercises ?? []
   const totalSets = exercises.reduce((n, e) => n + (e.sets_completed ?? 0), 0)

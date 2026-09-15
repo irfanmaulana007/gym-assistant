@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth'
 // destinations live here rather than as buttons in the header, keeping the top
 // nav bar clean (back chevron + title only). Progress is the landing tab at `/`
 // (PRD 0007); the workout-days list moved to `/workout`; History lists past
-// sessions (PRD 0012). The Profile tab shows the user's avatar when set
+// sessions (PRD 0013). The Profile tab shows the user's avatar when set
 // (PRD 0008), replacing the generic icon with their face. See PRD 0005 and
 // .claude/rules/native-mobile-ux.md.
 const TABS = [

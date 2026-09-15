@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { sessionMuscleUsage } from '@/lib/sessionMuscles'
 import type { SessionExercise, WorkoutSession } from '@/types/api'
 
-// PRD 0012 — the session summary's body heatmap is driven by sets-per-muscle.
+// PRD 0013 — the session summary's body heatmap is driven by sets-per-muscle.
 // Each exercise credits its completed sets to its primary group AND each of its
 // secondary groups, summed across the session.
 

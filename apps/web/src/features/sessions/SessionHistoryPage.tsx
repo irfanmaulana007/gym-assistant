@@ -7,7 +7,7 @@ import { ChevronRight } from '@/components/icons'
 import { formatDate, formatDuration } from '@/lib/format'
 import { muscleGroupLabel, type WorkoutSession } from '@/types/api'
 
-// Browsable history of completed workouts (PRD 0012). Each row opens the same
+// Browsable history of completed workouts (PRD 0013). Each row opens the same
 // summary shown right after finishing (`/sessions/:id`). The list endpoint
 // returns session-level facts only (date, durations, muscle groups) — the full
 // per-exercise breakdown and body heatmap live on the detail.

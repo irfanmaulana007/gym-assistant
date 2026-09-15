@@ -1,5 +1,5 @@
 // Derive per-muscle-group set counts for a single workout session, feeding the
-// body heatmap on the session summary (PRD 0012).
+// body heatmap on the session summary (PRD 0013).
 //
 // Each exercise contributes its completed sets to its primary muscle group AND
 // to each of its secondary groups — a muscle worked by an exercise gets credit

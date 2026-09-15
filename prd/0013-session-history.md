@@ -1,4 +1,4 @@
-# PRD 0012 — Session History & Rich Session Detail
+# PRD 0013 — Session History & Rich Session Detail
 
 | Field | Value |
 |-------|-------|

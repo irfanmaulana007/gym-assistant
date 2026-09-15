@@ -38,7 +38,7 @@ describe('BottomNav', () => {
     expect(profile).toHaveAttribute('href', '/profile')
   })
 
-  it('marks the History tab active on the sessions route (PRD 0012)', () => {
+  it('marks the History tab active on the sessions route (PRD 0013)', () => {
     renderAt('/sessions')
     expect(screen.getByRole('link', { name: 'History' }).className).toContain('is-active')
     expect(screen.getByRole('link', { name: 'Workout' }).className).not.toContain('is-active')

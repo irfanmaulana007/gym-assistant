@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-// E2E: PRD 0012 — after finishing a workout the summary shows a body heatmap of
+// E2E: PRD 0013 — after finishing a workout the summary shows a body heatmap of
 // the muscles worked; the History tab lists past sessions; opening one shows the
 // same summary (with the heatmap) as right after finishing. The anatome request
 // is intercepted so the test never touches the external service — we assert the

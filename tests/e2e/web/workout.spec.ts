@@ -96,6 +96,48 @@ test("shows the previous session's weight as the target to beat", async ({ page 
   await expect(page.getByText(/Last time 60kg × 8/)).toBeVisible()
 })
 
+test('edit a mistyped set during the session (PRD 0012)', async ({ page }) => {
+  const email = `edit_${Date.now()}@example.com`
+
+  // Register.
+  await page.goto('/register')
+  await page.getByLabel('Display name').fill('Edit User')
+  await page.getByLabel('Email').fill(email)
+  await page.getByLabel('Password').fill('supersecret1')
+  await page.getByRole('button', { name: /create account/i }).click()
+
+  // Create a routine and add an exercise.
+  await page.getByRole('link', { name: 'Workout' }).click()
+  await page.getByRole('button', { name: /new workout day/i }).click()
+  await page.getByLabel('Workout day name').fill('Push Day')
+  await page.getByRole('button', { name: /add workout day/i }).click()
+  await page.getByText('Push Day').click()
+  await page.getByRole('button', { name: 'Add exercise', exact: true }).click()
+  await page.getByRole('button', { name: /custom exercise/i }).click()
+  await page.getByLabel('Name').fill('Bench Press')
+  await page.getByRole('button', { name: /save exercise/i }).click()
+  await expect(page.getByText('Bench Press')).toBeVisible()
+
+  // Start the workout and log a wrong set: 600kg × 8 (fat-fingered).
+  await page.getByRole('button', { name: /start workout/i }).click()
+  await expect(page.getByRole('button', { name: /stop/i })).toBeVisible()
+  await page.getByLabel('Bench Press weight', { exact: true }).fill('600')
+  await page.getByLabel('Bench Press reps').fill('8')
+  await page.getByRole('button', { name: /^log$/i }).click()
+  await expect(page.getByText('600kg × 8')).toBeVisible()
+
+  // Edit the set in place: correct the weight to 60 and save.
+  await page.getByRole('button', { name: /edit set 1 of bench press/i }).click()
+  const weightInput = page.getByLabel('Bench Press set 1 weight', { exact: true })
+  await expect(weightInput).toHaveValue('600')
+  await weightInput.fill('60')
+  await page.getByRole('button', { name: /save set 1 of bench press/i }).click()
+
+  // The corrected value round-trips (read back from the API on invalidate).
+  await expect(page.getByText('60kg × 8')).toBeVisible()
+  await expect(page.getByText('600kg × 8')).toHaveCount(0)
+})
+
 test('stop then discard abandons the session and redirects home', async ({ page }) => {
   const email = `discard_${Date.now()}@example.com`
 

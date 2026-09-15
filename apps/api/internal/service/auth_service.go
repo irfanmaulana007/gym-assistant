@@ -14,9 +14,14 @@ import (
 	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/httpx"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/optional"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/passwords"
+	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/refreshtoken"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/tokens"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/validate"
 )
+
+// defaultRefreshTTL is the fallback refresh-token lifetime when none is
+// configured (30 days).
+const defaultRefreshTTL = 30 * 24 * time.Hour
 
 // avatarMaxBytes caps the stored avatar data URL (PRD 0008 §4.6: ≤ ~200 KB).
 const avatarMaxBytes = 200 * 1024
@@ -30,26 +35,43 @@ type userRepo interface {
 	UpdatePasswordHash(ctx context.Context, userID, hash string) error
 }
 
+// refreshRepo is the subset of the refresh-token repository AuthService needs.
+type refreshRepo interface {
+	Create(ctx context.Context, userID, tokenHash string, expiresAt time.Time) (*domain.RefreshToken, error)
+	GetByHash(ctx context.Context, tokenHash string) (*domain.RefreshToken, error)
+	Revoke(ctx context.Context, id string) error
+	RevokeAllForUser(ctx context.Context, userID string) error
+}
+
 // clock returns the current time; injectable for deterministic tests.
 type clock func() time.Time
 
-// AuthService implements registration, login, profile lookup/update, and
-// password change.
+// AuthService implements registration, login, profile lookup/update, password
+// change, and refresh-token issuance/rotation.
 type AuthService struct {
-	users  userRepo
-	issuer *tokens.Issuer
-	now    clock
+	users      userRepo
+	refresh    refreshRepo
+	issuer     *tokens.Issuer
+	refreshTTL time.Duration
+	now        clock
 }
 
-// NewAuthService builds an AuthService.
-func NewAuthService(users userRepo, issuer *tokens.Issuer) *AuthService {
-	return &AuthService{users: users, issuer: issuer, now: time.Now}
+// NewAuthService builds an AuthService. refreshTTL is the refresh-token lifetime;
+// a non-positive value falls back to defaultRefreshTTL.
+func NewAuthService(users userRepo, refresh refreshRepo, issuer *tokens.Issuer, refreshTTL time.Duration) *AuthService {
+	if refreshTTL <= 0 {
+		refreshTTL = defaultRefreshTTL
+	}
+	return &AuthService{users: users, refresh: refresh, issuer: issuer, refreshTTL: refreshTTL, now: time.Now}
 }
 
-// AuthResult bundles an issued token with the authenticated user.
+// AuthResult bundles an issued access token and its rotating refresh token with
+// the authenticated user.
 type AuthResult struct {
-	Token string
-	User  *domain.User
+	Token            string
+	RefreshToken     string
+	RefreshExpiresAt time.Time
+	User             *domain.User
 }
 
 // Register validates input, creates the user with a hashed password, and issues
@@ -95,7 +117,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, displayName
 		}
 		return nil, err
 	}
-	return s.issueFor(user)
+	return s.issueFor(ctx, user)
 }
 
 // Login verifies credentials and issues a token. The identifier is an email OR
@@ -113,7 +135,7 @@ func (s *AuthService) Login(ctx context.Context, identifier, password string) (*
 	if !passwords.Verify(user.PasswordHash, password) {
 		return nil, invalidCredentials()
 	}
-	return s.issueFor(user)
+	return s.issueFor(ctx, user)
 }
 
 // Me returns the user for the given id.
@@ -289,16 +311,83 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID, current, next 
 	return s.users.UpdatePasswordHash(ctx, userID, hash)
 }
 
-func (s *AuthService) issueFor(user *domain.User) (*AuthResult, error) {
-	token, err := s.issuer.Issue(user.ID, s.now())
+// Refresh validates a raw refresh token, rotates it (revokes the presented
+// token, issues a fresh access+refresh pair), and returns the new pair. An
+// unknown, expired, or already-revoked token yields a generic 401. Presenting an
+// already-revoked token signals theft/replay, so every active token for that
+// user is revoked, forcing a fresh login everywhere.
+func (s *AuthService) Refresh(ctx context.Context, rawToken string) (*AuthResult, error) {
+	if rawToken == "" {
+		return nil, invalidRefresh()
+	}
+	rec, err := s.refresh.GetByHash(ctx, refreshtoken.Hash(rawToken))
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, invalidRefresh()
+		}
+		return nil, err
+	}
+	if rec.RevokedAt != nil {
+		// Reuse of a rotated/revoked token -> revoke the whole family.
+		_ = s.refresh.RevokeAllForUser(ctx, rec.UserID)
+		return nil, invalidRefresh()
+	}
+	if !rec.ExpiresAt.After(s.now()) {
+		return nil, invalidRefresh()
+	}
+	user, err := s.users.GetByID(ctx, rec.UserID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, invalidRefresh()
+		}
+		return nil, err
+	}
+	if err := s.refresh.Revoke(ctx, rec.ID); err != nil {
+		return nil, err
+	}
+	return s.issueFor(ctx, user)
+}
+
+// Logout revokes the given refresh token so it can no longer be used. It is
+// idempotent and never reveals whether the token existed.
+func (s *AuthService) Logout(ctx context.Context, rawToken string) error {
+	if rawToken == "" {
+		return nil
+	}
+	rec, err := s.refresh.GetByHash(ctx, refreshtoken.Hash(rawToken))
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	return s.refresh.Revoke(ctx, rec.ID)
+}
+
+// issueFor mints an access token and a fresh (persisted, hashed) refresh token
+// for the user.
+func (s *AuthService) issueFor(ctx context.Context, user *domain.User) (*AuthResult, error) {
+	access, err := s.issuer.Issue(user.ID, s.now())
 	if err != nil {
 		return nil, err
 	}
-	return &AuthResult{Token: token, User: user}, nil
+	raw, hash, err := refreshtoken.Generate()
+	if err != nil {
+		return nil, err
+	}
+	expiresAt := s.now().Add(s.refreshTTL)
+	if _, err := s.refresh.Create(ctx, user.ID, hash, expiresAt); err != nil {
+		return nil, err
+	}
+	return &AuthResult{Token: access, RefreshToken: raw, RefreshExpiresAt: expiresAt, User: user}, nil
 }
 
 func invalidCredentials() error {
 	return httpx.NewAPIError(http.StatusUnauthorized, httpx.CodeUnauthorized, "invalid credentials")
+}
+
+func invalidRefresh() error {
+	return httpx.NewAPIError(http.StatusUnauthorized, httpx.CodeUnauthorized, "invalid or expired refresh token")
 }
 
 // --- partial-update helpers ---

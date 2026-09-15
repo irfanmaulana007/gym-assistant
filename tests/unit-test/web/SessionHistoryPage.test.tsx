@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/lib/auth'
 import { SessionHistoryPage } from '@/features/sessions/SessionHistoryPage'
 
-// PRD 0012 — the History tab lists completed sessions, most-recent first, each
+// PRD 0013 — the History tab lists completed sessions, most-recent first, each
 // linking to the same summary shown right after finishing.
 
 function jsonResponse(status: number, body: unknown) {
