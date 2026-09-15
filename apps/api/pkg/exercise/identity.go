@@ -19,6 +19,23 @@ func NormalizeName(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
 }
 
+// IdentityKey returns a stable grouping key for an exercise's movement identity,
+// so many exercises can be bucketed in one pass (O(n)) rather than compared
+// pairwise. Two exercises are the same movement iff their keys are equal — see
+// SameIdentity for the rule this encodes.
+//
+//   - Catalog-linked → "cat:" + catalog id (name is irrelevant).
+//   - Custom (no link) → "name:" + normalized name.
+//
+// The distinct prefixes guarantee a linked and a custom exercise never collide,
+// even if a custom name equals a catalog id string.
+func IdentityKey(catalogID *string, name string) string {
+	if catalogID != nil {
+		return "cat:" + *catalogID
+	}
+	return "name:" + NormalizeName(name)
+}
+
 // SameIdentity reports whether two exercises are the same movement for the
 // purpose of shared history:
 //
@@ -29,13 +46,5 @@ func NormalizeName(name string) string {
 //
 // catalogID is nil for a custom exercise and the catalog entry id otherwise.
 func SameIdentity(catalogIDA *string, nameA string, catalogIDB *string, nameB string) bool {
-	aLinked := catalogIDA != nil
-	bLinked := catalogIDB != nil
-	if aLinked != bLinked {
-		return false
-	}
-	if aLinked {
-		return *catalogIDA == *catalogIDB
-	}
-	return NormalizeName(nameA) == NormalizeName(nameB)
+	return IdentityKey(catalogIDA, nameA) == IdentityKey(catalogIDB, nameB)
 }

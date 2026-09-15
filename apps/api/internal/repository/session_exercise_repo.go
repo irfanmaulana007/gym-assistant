@@ -60,12 +60,29 @@ func (r *SessionRepository) ListSessionExercises(ctx context.Context, sessionID 
 	return out, rows.Err()
 }
 
-// LastSetsBeforeSession returns every weighted, rep-logged set for the exercises
+// LastSetsBeforeSession returns candidate "last set" rows for the exercises
 // performed in the given session, drawn from the user's *other* sessions (the
 // current session is excluded so an in-progress log never counts as its own
-// "weight to beat"). Ad-hoc exercises (no exercise_id) are excluded. The caller
-// reduces these to each exercise's most recent top set.
+// "weight to beat") and from every routine that contains the *same* movement
+// (PRD 0014), so the weight-to-beat is shared across workout groups. Each row is
+// tagged with the session's exercise id it seeds, not its source exercise.
+// Ad-hoc exercises (no exercise_id) are excluded. The caller reduces these to
+// each exercise's most recent top set.
 func (r *SessionRepository) LastSetsBeforeSession(ctx context.Context, userID, sessionID string) ([]LastSetRow, error) {
+	ids, err := loadUserExerciseIdentities(ctx, r.pool, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	targetIDs, err := r.sessionExerciseIDs(ctx, userID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	peerIDs := ids.peerIDsForTargets(targetIDs)
+	if len(peerIDs) == 0 {
+		return []LastSetRow{}, nil
+	}
+
 	const q = `
 		SELECT
 			sx.exercise_id,
@@ -80,15 +97,41 @@ func (r *SessionRepository) LastSetsBeforeSession(ctx context.Context, userID, s
 		WHERE s.user_id = $1
 			AND s.id <> $2
 			AND se.weight IS NOT NULL AND se.reps IS NOT NULL
-			AND sx.exercise_id IN (
-				SELECT exercise_id FROM session_exercises
-				WHERE session_id = $2 AND exercise_id IS NOT NULL
-			)`
-	rows, err := r.pool.Query(ctx, q, userID, sessionID)
+			AND sx.exercise_id = ANY($3::uuid[])`
+	rows, err := r.pool.Query(ctx, q, userID, sessionID, peerIDs)
 	if err != nil {
 		return nil, err
 	}
-	return scanLastSetRows(rows)
+	candidates, err := scanLastSetRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	return ids.retagByIdentity(candidates, targetIDs), nil
+}
+
+// sessionExerciseIDs returns the distinct live exercise ids performed in a
+// session the user owns (ad-hoc entries with no exercise link are excluded).
+func (r *SessionRepository) sessionExerciseIDs(ctx context.Context, userID, sessionID string) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT sx.exercise_id
+		FROM session_exercises sx
+		JOIN workout_sessions s ON s.id = sx.session_id
+		WHERE sx.session_id = $1 AND s.user_id = $2 AND sx.exercise_id IS NOT NULL`,
+		sessionID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // GetSessionExercise returns a checklist item owned by the user (via its

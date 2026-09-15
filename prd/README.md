@@ -34,6 +34,7 @@ for the full document structure.
 | [0012](0012-edit-logged-set-in-session.md) | Edit a Logged Set During a Running Session | Approved | web |
 | [0013](0013-session-history.md) | Session History & Rich Session Detail | Approved | web |
 | [0014](0014-shared-exercise-history-across-routines.md) | Shared Exercise History Across Routines | Approved | api |
+| [0015](0015-shared-last-set-across-routines.md) | Shared "Last Set to Beat" Across Routines | Approved | api |
 
 ## Status values
 

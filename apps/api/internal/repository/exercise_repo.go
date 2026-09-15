@@ -437,11 +437,27 @@ func scanLastSetRows(rows pgx.Rows) ([]LastSetRow, error) {
 	return out, rows.Err()
 }
 
-// LastSetsByRoutine returns every weighted, rep-logged set for the routine's
-// exercises across all of the user's sessions. Scoped to the user via the
-// session's user_id; exercises never performed with a weight are simply absent.
-// The caller reduces these to each exercise's most recent top set.
+// LastSetsByRoutine returns candidate "last set" rows for the routine's
+// exercises, drawn from every routine that contains the *same* movement (PRD
+// 0014) so the weight-to-beat is shared across workout groups. Each returned row
+// is tagged with the routine exercise id it seeds (not its source exercise),
+// letting the caller reduce per displayed exercise. Scoped to the user; a
+// weight-less exercise is simply absent.
 func (r *ExerciseRepository) LastSetsByRoutine(ctx context.Context, userID, routineID string) ([]LastSetRow, error) {
+	ids, err := loadUserExerciseIdentities(ctx, r.pool, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	targetIDs, err := r.routineExerciseIDs(ctx, userID, routineID)
+	if err != nil {
+		return nil, err
+	}
+	peerIDs := ids.peerIDsForTargets(targetIDs)
+	if len(peerIDs) == 0 {
+		return []LastSetRow{}, nil
+	}
+
 	const q = `
 		SELECT
 			sx.exercise_id,
@@ -453,14 +469,40 @@ func (r *ExerciseRepository) LastSetsByRoutine(ctx context.Context, userID, rout
 		FROM set_entries se
 		JOIN session_exercises sx ON sx.id = se.session_exercise_id
 		JOIN workout_sessions s ON s.id = sx.session_id
-		JOIN exercises e ON e.id = sx.exercise_id
-		WHERE e.routine_id = $1 AND s.user_id = $2
+		WHERE sx.exercise_id = ANY($1::uuid[]) AND s.user_id = $2
 			AND se.weight IS NOT NULL AND se.reps IS NOT NULL`
-	rows, err := r.pool.Query(ctx, q, routineID, userID)
+	rows, err := r.pool.Query(ctx, q, peerIDs, userID)
 	if err != nil {
 		return nil, err
 	}
-	return scanLastSetRows(rows)
+	candidates, err := scanLastSetRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	return ids.retagByIdentity(candidates, targetIDs), nil
+}
+
+// routineExerciseIDs returns the ids of the exercises in a routine the user owns.
+func (r *ExerciseRepository) routineExerciseIDs(ctx context.Context, userID, routineID string) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT e.id
+		FROM exercises e
+		JOIN routines rt ON rt.id = e.routine_id
+		WHERE e.routine_id = $1 AND rt.user_id = $2`, routineID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
 }
 
 // Delete removes an exercise the user owns. Missing -> ErrNotFound.
