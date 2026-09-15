@@ -13,6 +13,7 @@ import (
 
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/domain"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/catalog"
+	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/exercise"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/ordering"
 )
 
@@ -318,8 +319,20 @@ type HistoryRow struct {
 }
 
 // History returns every logged set for the exercise across all of the user's
-// sessions, oldest first. Ownership is enforced via the session's user_id.
+// sessions, oldest first — aggregated across every routine that contains the
+// *same* movement (PRD 0014). The same exercise added to several routines lives
+// as separate rows, but shares one progression, so history keys on shared
+// identity (catalog link, else normalized name) rather than a single
+// exercises.id. Ownership is enforced via the session's user_id.
 func (r *ExerciseRepository) History(ctx context.Context, userID, exerciseID string) ([]HistoryRow, error) {
+	peerIDs, err := r.peerExerciseIDs(ctx, userID, exerciseID)
+	if err != nil {
+		return nil, err
+	}
+	if len(peerIDs) == 0 {
+		return []HistoryRow{}, nil
+	}
+
 	const q = `
 		SELECT
 			s.id,
@@ -328,9 +341,9 @@ func (r *ExerciseRepository) History(ctx context.Context, userID, exerciseID str
 		FROM set_entries se
 		JOIN session_exercises sx ON sx.id = se.session_exercise_id
 		JOIN workout_sessions s ON s.id = sx.session_id
-		WHERE sx.exercise_id = $1 AND s.user_id = $2
+		WHERE sx.exercise_id = ANY($1::uuid[]) AND s.user_id = $2
 		ORDER BY performed_at, s.id, se.entry_number`
-	rows, err := r.pool.Query(ctx, q, exerciseID, userID)
+	rows, err := r.pool.Query(ctx, q, peerIDs, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -345,6 +358,56 @@ func (r *ExerciseRepository) History(ctx context.Context, userID, exerciseID str
 		out = append(out, h)
 	}
 	return out, rows.Err()
+}
+
+// peerExerciseIDs returns the ids of every exercise owned by the user that
+// shares identity with exerciseID — i.e. the same movement across routines
+// (including exerciseID itself). Grouping runs in Go via exercise.SameIdentity
+// (a single, unit-tested rule) rather than in SQL, so name normalization has one
+// source of truth. Returns an empty slice if the exercise is missing or not
+// owned by the user.
+func (r *ExerciseRepository) peerExerciseIDs(ctx context.Context, userID, exerciseID string) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT e.id, e.catalog_exercise_id, e.name
+		FROM exercises e
+		JOIN routines rt ON rt.id = e.routine_id
+		WHERE rt.user_id = $1`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	type exRow struct {
+		id        string
+		catalogID *string
+		name      string
+	}
+	var all []exRow
+	var target *exRow
+	for rows.Next() {
+		var e exRow
+		if err := rows.Scan(&e.id, &e.catalogID, &e.name); err != nil {
+			return nil, err
+		}
+		all = append(all, e)
+		if e.id == exerciseID {
+			target = &all[len(all)-1]
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if target == nil {
+		return nil, nil
+	}
+
+	peers := []string{}
+	for _, e := range all {
+		if exercise.SameIdentity(target.catalogID, target.name, e.catalogID, e.name) {
+			peers = append(peers, e.id)
+		}
+	}
+	return peers, nil
 }
 
 // LastSetRow is one weighted, rep-logged set of an exercise, tagged with the
