@@ -1,14 +1,17 @@
 import { useState } from 'react'
-import { muscleGroupLabel, type MuscleGroupStat } from '@/types/api'
-import { buildMuscleUsageDiagramUrl } from '@/lib/muscleDiagram'
+import { muscleGroupLabel } from '@/types/api'
+import { buildMuscleUsageDiagramUrl, type MuscleUsageStat } from '@/lib/muscleDiagram'
 
 interface MuscleUsageDiagramProps {
-  groups: MuscleGroupStat[]
+  // The minimal shape the diagram reads ({ muscle_group, sets }). The analytics
+  // MuscleGroupStat (with volume/frequency/undertrained) is assignable to this,
+  // so both the profile dashboard and the per-session summary can feed it.
+  groups: MuscleUsageStat[]
 }
 
 // Accessible alt text naming the most-trained groups so the description matches
 // the visual without reading out every muscle.
-function altText(groups: MuscleGroupStat[]): string {
+function altText(groups: MuscleUsageStat[]): string {
   const top = [...groups]
     .filter((g) => g.sets > 0)
     .sort((a, b) => b.sets - a.sets)

@@ -694,6 +694,10 @@ h1, h2, h3, p { margin: 0; }
 }
 .entry-row .idx { color: var(--text-muted); }
 .entry-row .val { font-weight: 650; font-variant-numeric: tabular-nums; }
+/* Inline edit state for a logged set: wrap on narrow screens, let the numeric
+   inputs share the remaining width. */
+.entry-row-editing { flex-wrap: wrap; gap: var(--sp-2); }
+.entry-row-editing .input { flex: 1 1 64px; min-width: 0; }
 
 /* Empty state. */
 .empty {

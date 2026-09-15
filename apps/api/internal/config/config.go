@@ -23,6 +23,9 @@ type Config struct {
 	JWTSecret string
 	// AccessTokenTTL is how long an issued access token stays valid.
 	AccessTokenTTL time.Duration
+	// RefreshTokenTTL is how long an issued refresh token stays valid — the max
+	// inactivity window before a user must log in again.
+	RefreshTokenTTL time.Duration
 	// AllowedOrigins are the browser origins permitted by CORS. Defaults to the
 	// local web dev origin so the web app works out of the box.
 	AllowedOrigins []string
@@ -51,6 +54,12 @@ func Load() (*Config, error) {
 		problems = append(problems, err.Error())
 	}
 	cfg.AccessTokenTTL = time.Duration(ttlMinutes) * time.Minute
+
+	refreshDays, err := getEnvInt("REFRESH_TOKEN_TTL_DAYS", 30)
+	if err != nil {
+		problems = append(problems, err.Error())
+	}
+	cfg.RefreshTokenTTL = time.Duration(refreshDays) * 24 * time.Hour
 
 	cfg.AllowedOrigins = parseOrigins(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173"))
 

@@ -21,6 +21,13 @@ export const authApi = {
       body: { identifier, password },
     })
   },
+  logout(refreshToken: string) {
+    return request<void>('/api/v1/auth/logout', {
+      method: 'POST',
+      anonymous: true,
+      body: { refresh_token: refreshToken },
+    })
+  },
   me() {
     return request<User>('/api/v1/auth/me')
   },

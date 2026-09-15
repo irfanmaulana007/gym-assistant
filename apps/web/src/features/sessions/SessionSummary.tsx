@@ -1,14 +1,18 @@
 import { Link } from 'react-router-dom'
 import { formatDuration } from '@/lib/format'
+import { sessionMuscleUsage } from '@/lib/sessionMuscles'
+import { MuscleUsageDiagram } from '@/components/MuscleUsageDiagram'
 import { muscleGroupLabel, type WorkoutSession } from '@/types/api'
 
 // Post-workout summary — the same shape a future dashboard card will use
-// (PRD 0002 §8).
+// (PRD 0002 §8). Shown both right after finishing and when reopening a past
+// session from the History tab (PRD 0013).
 export function SessionSummary({ session }: { session: WorkoutSession }) {
   const exercises = session.exercises ?? []
   const totalSets = exercises.reduce((n, e) => n + (e.sets_completed ?? 0), 0)
   const totalVolume = exercises.reduce((n, e) => n + (e.total_volume ?? 0), 0)
   const timedSeconds = exercises.reduce((n, e) => n + (e.total_duration_seconds ?? 0), 0)
+  const muscleUsage = sessionMuscleUsage(session)
 
   return (
     <div className="stack" style={{ gap: 'var(--sp-4)' }}>
@@ -48,6 +52,7 @@ export function SessionSummary({ session }: { session: WorkoutSession }) {
 
       <div className="card stack">
         <div className="section-label">Muscle groups worked</div>
+        <MuscleUsageDiagram groups={muscleUsage} />
         <div className="row wrap">
           {session.muscle_groups.length > 0 ? (
             session.muscle_groups.map((g) => (

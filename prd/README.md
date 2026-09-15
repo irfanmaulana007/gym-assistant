@@ -28,8 +28,11 @@ for the full document structure.
 | [0007](0007-analytics-dashboard.md) | Analytics Dashboard (Progress at a Glance) | Implemented | api, web |
 | [0008](0008-user-profile-enrichment.md) | User Profile Enrichment (Identity, Health Data & Avatar) | Implemented | api, web |
 | [0009](0009-muscle-group-diagram.md) | Muscle-Group Diagram on the Exercise Info Tab | Implemented | web |
+| [0010](0010-refresh-tokens-and-longer-sessions.md) | Refresh Tokens & Longer-Lived Sessions | Approved | api, web |
 | [0010](0010-per-set-weight-unit-input.md) | Per-Set Weight-Unit Input on the Running Session | Approved | web |
 | [0011](0011-profile-muscle-usage-diagram.md) | Muscle-Usage Body Diagram on the Profile Screen | Approved | web |
+| [0012](0012-edit-logged-set-in-session.md) | Edit a Logged Set During a Running Session | Approved | web |
+| [0013](0013-session-history.md) | Session History & Rich Session Detail | Approved | web |
 
 ## Status values
 

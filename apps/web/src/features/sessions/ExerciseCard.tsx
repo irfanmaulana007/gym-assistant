@@ -131,7 +131,7 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
   }
 
   return (
-    <li className="list-item stack">
+    <li className="list-item stack" data-flip-key={sx.id}>
       <div className="row-between">
         <button
           type="button"
@@ -171,14 +171,15 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
       {sx.entries && sx.entries.length > 0 ? (
         <ul className="stack" style={{ listStyle: 'none', margin: 0, padding: 0, gap: 'var(--sp-1)' }}>
           {sx.entries.map((e) => (
-            <li key={e.id} className="entry-row">
-              <span className="idx">Set {e.entry_number}</span>
-              <span className="val">
-                {e.duration_seconds != null
-                  ? formatDuration(e.duration_seconds)
-                  : `${e.weight ?? '—'}${e.weight_unit ?? ''} × ${e.reps ?? '—'}`}
-              </span>
-            </li>
+            <EntryRow
+              key={e.id}
+              entry={e}
+              name={sx.name_snapshot}
+              isDuration={isDuration}
+              preferredUnit={preferredUnit}
+              disabled={disabled}
+              onChanged={invalidate}
+            />
           ))}
         </ul>
       ) : null}
@@ -224,6 +225,158 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
             Log
           </Button>
         </div>
+      ) : null}
+    </li>
+  )
+}
+
+// One logged set. Read-only pill by default; tapping Edit reveals inline inputs
+// pre-filled with the set's values so a mistyped weight/reps (or duration) can
+// be corrected — or the set deleted — without leaving the session. Delete lives
+// inside the edit state so it can't be hit by accident mid-workout.
+function EntryRow({
+  entry,
+  name,
+  isDuration,
+  preferredUnit,
+  disabled,
+  onChanged,
+}: {
+  entry: SetEntry
+  name: string
+  isDuration: boolean
+  preferredUnit: WeightUnit
+  disabled: boolean
+  onChanged: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [weight, setWeight] = useState('')
+  const [reps, setReps] = useState('')
+  const [minutes, setMinutes] = useState('')
+
+  const updateMut = useMutation({
+    mutationFn: (input: EntryInput) => sessionsApi.updateEntry(entry.id, input),
+    onSuccess: () => {
+      setEditing(false)
+      onChanged()
+    },
+  })
+  const deleteMut = useMutation({
+    mutationFn: () => sessionsApi.removeEntry(entry.id),
+    onSuccess: () => {
+      setEditing(false)
+      onChanged()
+    },
+  })
+  const busy = updateMut.isPending || deleteMut.isPending
+
+  function startEdit() {
+    setWeight(entry.weight == null ? '' : String(entry.weight))
+    setReps(entry.reps == null ? '' : String(entry.reps))
+    setMinutes(entry.duration_seconds == null ? '' : String(entry.duration_seconds / 60))
+    setEditing(true)
+  }
+
+  function saveEdit() {
+    if (isDuration) {
+      const secs = Math.round(Number(minutes) * 60)
+      if (!secs) return
+      updateMut.mutate({ duration_seconds: secs })
+    } else {
+      const w = weight === '' ? null : Number(weight)
+      const r = reps === '' ? null : Number(reps)
+      if (r == null) return
+      updateMut.mutate({ weight: w, reps: r, weight_unit: w == null ? undefined : entry.weight_unit ?? preferredUnit })
+    }
+  }
+
+  if (editing) {
+    return (
+      <li className="entry-row entry-row-editing">
+        <span className="idx">Set {entry.entry_number}</span>
+        {isDuration ? (
+          <input
+            className="input"
+            type="number"
+            min={0}
+            inputMode="decimal"
+            placeholder="minutes"
+            aria-label={`${name} set ${entry.entry_number} minutes`}
+            value={minutes}
+            onChange={(e) => setMinutes(e.target.value)}
+          />
+        ) : (
+          <>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              inputMode="decimal"
+              placeholder={entry.weight_unit ?? preferredUnit}
+              aria-label={`${name} set ${entry.entry_number} weight`}
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+            />
+            <input
+              className="input"
+              type="number"
+              min={0}
+              inputMode="numeric"
+              placeholder="reps"
+              aria-label={`${name} set ${entry.entry_number} reps`}
+              value={reps}
+              onChange={(e) => setReps(e.target.value)}
+            />
+          </>
+        )}
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={busy}
+          aria-label={`Save set ${entry.entry_number} of ${name}`}
+          onClick={saveEdit}
+        >
+          Save
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy}
+          aria-label={`Cancel editing set ${entry.entry_number} of ${name}`}
+          onClick={() => setEditing(false)}
+        >
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          variant="danger"
+          disabled={busy}
+          aria-label={`Delete set ${entry.entry_number} of ${name}`}
+          onClick={() => deleteMut.mutate()}
+        >
+          Delete
+        </Button>
+      </li>
+    )
+  }
+
+  return (
+    <li className="entry-row">
+      <span className="idx">Set {entry.entry_number}</span>
+      <span className="val">
+        {entry.duration_seconds != null
+          ? formatDuration(entry.duration_seconds)
+          : `${entry.weight ?? '—'}${entry.weight_unit ?? ''} × ${entry.reps ?? '—'}`}
+      </span>
+      {!disabled ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={`Edit set ${entry.entry_number} of ${name}`}
+          onClick={startEdit}
+        >
+          Edit
+        </Button>
       ) : null}
     </li>
   )
