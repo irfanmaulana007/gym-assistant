@@ -30,6 +30,7 @@ for the full document structure.
 | [0009](0009-muscle-group-diagram.md) | Muscle-Group Diagram on the Exercise Info Tab | Implemented | web |
 | [0010](0010-per-set-weight-unit-input.md) | Per-Set Weight-Unit Input on the Running Session | Approved | web |
 | [0011](0011-profile-muscle-usage-diagram.md) | Muscle-Usage Body Diagram on the Profile Screen | Approved | web |
+| [0012](0012-session-history.md) | Session History & Rich Session Detail | Approved | web |
 
 ## Status values
 

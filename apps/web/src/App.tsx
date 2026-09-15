@@ -8,6 +8,7 @@ import { RegisterPage } from '@/features/auth/RegisterPage'
 import { WorkoutPage } from '@/features/routines/WorkoutPage'
 import { RoutineDetailPage } from '@/features/routines/RoutineDetailPage'
 import { ActiveSessionPage } from '@/features/sessions/ActiveSessionPage'
+import { SessionHistoryPage } from '@/features/sessions/SessionHistoryPage'
 import { ExerciseHistoryPage } from '@/features/exercises/ExerciseHistoryPage'
 import { ProfilePage } from '@/features/profile/ProfilePage'
 import { EditProfilePage } from '@/features/profile/EditProfilePage'
@@ -29,6 +30,7 @@ export function App() {
             <Route path="/" element={protectedElement(<DashboardPage />)} />
             <Route path="/workout" element={protectedElement(<WorkoutPage />)} />
             <Route path="/routines/:id" element={protectedElement(<RoutineDetailPage />)} />
+            <Route path="/sessions" element={protectedElement(<SessionHistoryPage />)} />
             <Route path="/sessions/:id" element={protectedElement(<ActiveSessionPage />)} />
             <Route path="/exercises/:id/history" element={protectedElement(<ExerciseHistoryPage />)} />
             {/* Progress moved to `/`; keep the old path working for bookmarks. */}

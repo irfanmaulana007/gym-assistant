@@ -84,8 +84,10 @@ export function ActiveSessionPage() {
   }
 
   if (session.status === 'completed') {
+    // Back returns to wherever the user came from — the History list when opened
+    // from there, or the Workout screen right after finishing (PRD 0012).
     return (
-      <Layout title="Workout complete" back="/workout" backLabel="Workout">
+      <Layout title="Workout complete" back={-1}>
         <SessionSummary session={session} />
       </Layout>
     )

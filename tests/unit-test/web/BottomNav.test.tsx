@@ -26,14 +26,22 @@ describe('BottomNav', () => {
     localStorage.clear()
   })
 
-  it('renders Progress, Workout and Profile tabs linking to their routes', () => {
+  it('renders Progress, Workout, History and Profile tabs linking to their routes', () => {
     renderAt('/')
     const progress = screen.getByRole('link', { name: 'Progress' })
     const workout = screen.getByRole('link', { name: 'Workout' })
+    const history = screen.getByRole('link', { name: 'History' })
     const profile = screen.getByRole('link', { name: 'Profile' })
     expect(progress).toHaveAttribute('href', '/')
     expect(workout).toHaveAttribute('href', '/workout')
+    expect(history).toHaveAttribute('href', '/sessions')
     expect(profile).toHaveAttribute('href', '/profile')
+  })
+
+  it('marks the History tab active on the sessions route (PRD 0012)', () => {
+    renderAt('/sessions')
+    expect(screen.getByRole('link', { name: 'History' }).className).toContain('is-active')
+    expect(screen.getByRole('link', { name: 'Workout' }).className).not.toContain('is-active')
   })
 
   it('marks the Progress tab active on the landing route', () => {
