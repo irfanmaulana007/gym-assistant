@@ -57,7 +57,7 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
   }
 
   return (
-    <li className="list-item stack">
+    <li className="list-item stack" data-flip-key={sx.id}>
       <div className="row-between">
         <button
           type="button"

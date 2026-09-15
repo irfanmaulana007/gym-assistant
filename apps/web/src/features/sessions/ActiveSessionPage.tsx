@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { sessionsApi } from '@/api/sessions'
@@ -6,6 +6,7 @@ import { Layout } from '@/components/Layout'
 import { Sheet } from '@/components/Sheet'
 import { Button, ErrorText, Field, Spinner } from '@/components/ui'
 import { useElapsed } from '@/hooks/useElapsed'
+import { useFlipList } from '@/hooks/useFlipList'
 import { ACTIVE_SESSION_KEY } from '@/hooks/useActiveSession'
 import { formatDuration } from '@/lib/format'
 import { ExerciseCard } from './ExerciseCard'
@@ -74,6 +75,18 @@ export function ActiveSessionPage() {
   const running = session?.status === 'active'
   const elapsed = useElapsed(session?.started_at ?? null, running)
 
+  // Keep not-done exercises on top and sink completed ones to the bottom, so
+  // what's left to do is always in reach. Array#sort is stable, so exercises
+  // keep their original (position) order within each group. The FLIP ref
+  // animates each row gliding to its new slot when a status toggle reorders it.
+  const listRef = useFlipList<HTMLUListElement>()
+  const orderedExercises = useMemo(() => {
+    const exercises = session?.exercises ?? []
+    return [...exercises].sort(
+      (a, b) => Number(a.status === 'completed') - Number(b.status === 'completed'),
+    )
+  }, [session?.exercises])
+
   if (isLoading) return <Layout title="Loading…"><Spinner /></Layout>
   if (isError || !session) return <Layout title="Session"><ErrorText>Session not found.</ErrorText></Layout>
 
@@ -134,8 +147,8 @@ export function ActiveSessionPage() {
         </div>
       </div>
 
-      <ul className="list">
-        {session.exercises?.map((sx) => (
+      <ul className="list" ref={listRef}>
+        {orderedExercises.map((sx) => (
           <ExerciseCard key={sx.id} sessionId={id} sx={sx} disabled={paused} />
         ))}
       </ul>
