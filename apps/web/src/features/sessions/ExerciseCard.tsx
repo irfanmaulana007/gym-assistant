@@ -5,15 +5,38 @@ import { Button } from '@/components/ui'
 import { Segmented } from '@/components/Segmented'
 import { formatDuration, formatLastSet, formatTarget } from '@/lib/format'
 import { useAuth } from '@/lib/auth'
-import { muscleGroupLabel, type SessionExercise, type WeightUnit } from '@/types/api'
+import {
+  muscleGroupLabel,
+  type SessionExercise,
+  type SetEntry,
+  type WeightUnit,
+  type WorkoutSession,
+} from '@/types/api'
+
+const sessionKey = (sessionId: string) => ['session', sessionId] as const
+
+// Immutably apply a change to one session-exercise inside the cached session,
+// leaving the rest of the session untouched. Used for optimistic updates.
+function patchSessionExercise(
+  session: WorkoutSession | undefined,
+  sxId: string,
+  fn: (sx: SessionExercise) => SessionExercise,
+): WorkoutSession | undefined {
+  if (!session?.exercises) return session
+  return { ...session, exercises: session.exercises.map((e) => (e.id === sxId ? fn(e) : e)) }
+}
 
 // One checklist row: shows target, a done toggle, logged entries, and inline
 // inputs to log a weight set or a timed bout.
+//
+// Logging a set and toggling "done" both update the cached session optimistically
+// (React Query onMutate) so the row reflects the tap instantly — no waiting for
+// the round-trip. onSettled reconciles with the server; onError rolls back.
 export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; sx: SessionExercise; disabled: boolean }) {
   const qc = useQueryClient()
   const { user } = useAuth()
   const preferredUnit = user?.preferred_weight_unit ?? 'kg'
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['session', sessionId] })
+  const invalidate = () => qc.invalidateQueries({ queryKey: sessionKey(sessionId) })
 
   const isDuration = sx.measurement_type === 'duration'
   const [weight, setWeight] = useState('')
@@ -28,17 +51,68 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
 
   const toggleMut = useMutation({
     mutationFn: (status: SessionExercise['status']) => sessionsApi.updateSessionExercise(sx.id, { status }),
-    onSuccess: invalidate,
+    onMutate: async (status) => {
+      await qc.cancelQueries({ queryKey: sessionKey(sessionId) })
+      const prev = qc.getQueryData<WorkoutSession>(sessionKey(sessionId))
+      qc.setQueryData<WorkoutSession | undefined>(sessionKey(sessionId), (old) =>
+        patchSessionExercise(old, sx.id, (e) => ({
+          ...e,
+          status,
+          completed_at: status === 'completed' ? new Date().toISOString() : null,
+        })),
+      )
+      return { prev }
+    },
+    onError: (_err, _status, ctx) => {
+      if (ctx?.prev) qc.setQueryData(sessionKey(sessionId), ctx.prev)
+    },
+    onSettled: invalidate,
   })
 
   const logMut = useMutation({
     mutationFn: (input: EntryInput) => sessionsApi.addEntry(sx.id, input),
-    onSuccess: () => {
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: sessionKey(sessionId) })
+      const prev = qc.getQueryData<WorkoutSession>(sessionKey(sessionId))
+      const now = new Date().toISOString()
+      const optimisticId = `optimistic-${crypto.randomUUID()}`
+      qc.setQueryData<WorkoutSession | undefined>(sessionKey(sessionId), (old) =>
+        patchSessionExercise(old, sx.id, (e) => {
+          const optimisticEntry: SetEntry = {
+            id: optimisticId,
+            session_exercise_id: e.id,
+            entry_number: (e.entries?.length ?? 0) + 1,
+            weight: input.weight ?? null,
+            weight_unit: input.weight_unit ?? null,
+            reps: input.reps ?? null,
+            duration_seconds: input.duration_seconds ?? null,
+            distance: null,
+            distance_unit: null,
+            incline: null,
+            speed: null,
+            rpe: null,
+            is_completed: input.is_completed ?? true,
+            performed_at: now,
+            metadata: {},
+            created_at: now,
+          }
+          return {
+            ...e,
+            entries: [...(e.entries ?? []), optimisticEntry],
+            sets_completed: e.sets_completed + 1,
+          }
+        }),
+      )
+      // Clear the inputs right away so the next set can be logged without waiting.
       setWeight('')
       setReps('')
       setMinutes('')
-      invalidate()
+      return { prev }
     },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.prev) qc.setQueryData(sessionKey(sessionId), ctx.prev)
+    },
+    onSettled: invalidate,
   })
 
   const done = sx.status === 'completed'
@@ -64,7 +138,7 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
           className={`checkbox ${done ? 'checkbox-done' : ''}`}
           aria-label={done ? `Mark ${sx.name_snapshot} not done` : `Mark ${sx.name_snapshot} done`}
           aria-pressed={done}
-          disabled={disabled || toggleMut.isPending}
+          disabled={disabled}
           onClick={() => toggleMut.mutate(done ? 'pending' : 'completed')}
         >
           {done ? '✓' : ''}
@@ -146,7 +220,7 @@ export function ExerciseCard({ sessionId, sx, disabled }: { sessionId: string; s
               />
             </>
           )}
-          <Button size="sm" variant="primary" disabled={logMut.isPending} onClick={logSet}>
+          <Button size="sm" variant="primary" onClick={logSet}>
             Log
           </Button>
         </div>

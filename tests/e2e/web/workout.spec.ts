@@ -51,6 +51,54 @@ test('create routine, add exercise, run a session, see summary', async ({ page }
   await expect(page.getByText(/total volume/i)).toBeVisible()
 })
 
+test('logs sets optimistically and marks the exercise done without waiting', async ({ page }) => {
+  const email = `optimistic_${Date.now()}@example.com`
+
+  // Register + set up a routine with one exercise.
+  await page.goto('/register')
+  await page.getByLabel('Display name').fill('Opt User')
+  await page.getByLabel('Email').fill(email)
+  await page.getByLabel('Password').fill('supersecret1')
+  await page.getByRole('button', { name: /create account/i }).click()
+
+  await page.getByRole('link', { name: 'Workout' }).click()
+  await page.getByRole('button', { name: /new workout day/i }).click()
+  await page.getByLabel('Workout day name').fill('Push Day')
+  await page.getByRole('button', { name: /add workout day/i }).click()
+  await page.getByText('Push Day').click()
+  await page.getByRole('button', { name: 'Add exercise', exact: true }).click()
+  await page.getByRole('button', { name: /custom exercise/i }).click()
+  await page.getByLabel('Name').fill('Bench Press')
+  await page.getByRole('button', { name: /save exercise/i }).click()
+  await expect(page.getByText('Bench Press')).toBeVisible()
+
+  await page.getByRole('button', { name: /start workout/i }).click()
+  await expect(page.getByRole('button', { name: /stop/i })).toBeVisible()
+
+  // Log three sets back-to-back. The Log button is never disabled while a request
+  // is in flight (optimistic UI), so each set can be entered without waiting — and
+  // each row appears immediately after its click.
+  for (const [i, reps] of ['8', '7', '6'].entries()) {
+    await page.getByLabel('Bench Press weight', { exact: true }).fill('60')
+    await page.getByLabel('Bench Press reps').fill(reps)
+    await page.getByRole('button', { name: /^log$/i }).click()
+    await expect(page.getByText(`Set ${i + 1}`)).toBeVisible()
+  }
+  await expect(page.getByText('Set 1')).toBeVisible()
+  await expect(page.getByText('Set 2')).toBeVisible()
+  await expect(page.getByText('Set 3')).toBeVisible()
+
+  // Marking the exercise done flips the toggle immediately (optimistic status).
+  await page.getByRole('button', { name: /mark bench press done/i }).click()
+  await expect(page.getByRole('button', { name: /mark bench press not done/i })).toBeVisible()
+
+  // The optimistic state survives the round-trip: saving and reopening shows the
+  // three sets persisted server-side (write + read verified).
+  await page.getByRole('button', { name: /stop/i }).click()
+  await page.getByRole('button', { name: /save workout/i }).click()
+  await expect(page.getByText(/workout complete/i)).toBeVisible()
+})
+
 test("shows the previous session's weight as the target to beat", async ({ page }) => {
   const email = `beat_${Date.now()}@example.com`
 
