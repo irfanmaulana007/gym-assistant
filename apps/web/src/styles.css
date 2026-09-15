@@ -648,6 +648,42 @@ h1, h2, h3, p { margin: 0; }
 .checkbox:active { transform: scale(0.9); }
 .checkbox-done { background: var(--primary); border-color: var(--primary); }
 
+/* Native iOS-style toggle switch (see Switch.tsx). */
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: 44px;
+}
+.switch-label { font-size: 14px; font-weight: 600; color: var(--text-muted); }
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 28px;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.switch-on { background: var(--primary); }
+.switch-thumb {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: #fff;
+  box-shadow: var(--shadow-1);
+  transform: translateX(0);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.switch-on .switch-thumb { transform: translateX(18px); }
+.switch:active .switch-thumb { transform: scale(0.94); }
+.switch-on:active .switch-thumb { transform: translateX(18px) scale(0.94); }
+
 /* ---------- Stats grid (summary) ---------- */
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
 .stat {

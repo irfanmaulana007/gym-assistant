@@ -152,6 +152,25 @@ describe('ActiveSessionPage — Stop confirmation sheet', () => {
     expect(screen.queryByText('Home screen')).not.toBeInTheDocument()
   })
 
+  it('Opening a completed session by URL shows the history variant (group title, no Done, no encouragement)', async () => {
+    // PRD 0015 — arriving from History (or a reload) is not "just finished":
+    // title with the workout group, drop the celebratory framing and the CTA.
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const u = String(url)
+      if (u.includes('/api/v1/routines')) {
+        return jsonResponse(200, { routines: [{ id: 'r1', name: 'Push Day' }] })
+      }
+      return jsonResponse(200, activeSession('completed'))
+    }) as unknown as typeof fetch
+    renderPage(fetchMock)
+
+    // The workout-group name titles the screen (NavBar heading).
+    expect(await screen.findByText('Push Day')).toBeInTheDocument()
+    expect(screen.queryByText(/workout complete/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/nice work/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Done' })).not.toBeInTheDocument()
+  })
+
   it('Opening an already-abandoned session by URL redirects home', async () => {
     renderPage(vi.fn(async () => jsonResponse(200, activeSession('abandoned'))) as unknown as typeof fetch)
 
