@@ -14,6 +14,8 @@ import (
 type authService interface {
 	Register(ctx context.Context, email, password, displayName string, username *string) (*service.AuthResult, error)
 	Login(ctx context.Context, identifier, password string) (*service.AuthResult, error)
+	Refresh(ctx context.Context, refreshToken string) (*service.AuthResult, error)
+	Logout(ctx context.Context, refreshToken string) error
 	Me(ctx context.Context, userID string) (*domain.User, error)
 	UpdateProfile(ctx context.Context, userID string, in service.ProfileUpdate) (*domain.User, error)
 	ChangePassword(ctx context.Context, userID, current, next string) error
@@ -56,9 +58,14 @@ type changePasswordRequest struct {
 	NewPassword     string `json:"new_password"`
 }
 
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 type authResponse struct {
-	Token string       `json:"token"`
-	User  *domain.User `json:"user"`
+	Token        string       `json:"token"`
+	RefreshToken string       `json:"refresh_token"`
+	User         *domain.User `json:"user"`
 }
 
 // Register creates an account and returns a token.
@@ -73,7 +80,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, err)
 		return
 	}
-	httpx.JSON(w, http.StatusCreated, authResponse{Token: res.Token, User: res.User})
+	httpx.JSON(w, http.StatusCreated, authResponse{Token: res.Token, RefreshToken: res.RefreshToken, User: res.User})
 }
 
 // Login exchanges credentials for a token.
@@ -88,7 +95,38 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, err)
 		return
 	}
-	httpx.JSON(w, http.StatusOK, authResponse{Token: res.Token, User: res.User})
+	httpx.JSON(w, http.StatusOK, authResponse{Token: res.Token, RefreshToken: res.RefreshToken, User: res.User})
+}
+
+// Refresh exchanges a valid refresh token for a new access+refresh pair. The
+// presented token is rotated (single-use); the endpoint is public because the
+// access token may already be expired.
+func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	var req refreshRequest
+	if err := httpx.DecodeJSON(r, &req); err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	res, err := h.svc.Refresh(r.Context(), req.RefreshToken)
+	if err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, authResponse{Token: res.Token, RefreshToken: res.RefreshToken, User: res.User})
+}
+
+// Logout revokes the given refresh token. Idempotent; always returns 204.
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	var req refreshRequest
+	if err := httpx.DecodeJSON(r, &req); err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	if err := h.svc.Logout(r.Context(), req.RefreshToken); err != nil {
+		httpx.WriteError(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusNoContent, nil)
 }
 
 // Me returns the authenticated user's profile.

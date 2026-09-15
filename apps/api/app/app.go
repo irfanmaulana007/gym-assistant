@@ -24,8 +24,9 @@ import (
 // subset of internal/config the assembled app depends on, so tests can build an
 // app without loading the whole environment.
 type Config struct {
-	JWTSecret      string
-	AccessTokenTTL time.Duration
+	JWTSecret       string
+	AccessTokenTTL  time.Duration
+	RefreshTokenTTL time.Duration
 	// AllowedOrigins are the browser origins permitted by CORS.
 	AllowedOrigins []string
 }
@@ -48,13 +49,14 @@ func New(pool *pgxpool.Pool, cfg Config) http.Handler {
 		issuer := tokens.NewIssuer(cfg.JWTSecret, ttl)
 
 		userRepo := repository.NewUserRepository(pool)
+		refreshRepo := repository.NewRefreshTokenRepository(pool)
 		routineRepo := repository.NewRoutineRepository(pool)
 		exerciseRepo := repository.NewExerciseRepository(pool)
 		catalogRepo := repository.NewCatalogRepository(pool)
 		sessionRepo := repository.NewSessionRepository(pool)
 		analyticsRepo := repository.NewAnalyticsRepository(pool)
 
-		authSvc := service.NewAuthService(userRepo, issuer)
+		authSvc := service.NewAuthService(userRepo, refreshRepo, issuer, cfg.RefreshTokenTTL)
 		routineSvc := service.NewRoutineService(routineRepo, exerciseRepo)
 		exerciseSvc := service.NewExerciseService(exerciseRepo, catalogRepo)
 		catalogSvc := service.NewCatalogService(catalogRepo)
