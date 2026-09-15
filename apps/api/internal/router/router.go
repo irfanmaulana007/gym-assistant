@@ -48,6 +48,10 @@ func New(deps Deps) http.Handler {
 		if deps.Auth != nil {
 			r.Post("/auth/register", deps.Auth.Register)
 			r.Post("/auth/login", deps.Auth.Login)
+			// Refresh & logout are public: the access token may already be
+			// expired, so they authenticate with the refresh token in the body.
+			r.Post("/auth/refresh", deps.Auth.Refresh)
+			r.Post("/auth/logout", deps.Auth.Logout)
 		}
 
 		// Everything below requires a valid bearer token.

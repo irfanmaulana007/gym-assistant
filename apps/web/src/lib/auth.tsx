@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { getToken, setToken, setUnauthorizedHandler } from '@/api/client'
+import { getRefreshToken, getToken, setRefreshToken, setToken, setUnauthorizedHandler } from '@/api/client'
 import { authApi } from '@/api/auth'
 import type { User } from '@/types/api'
 
@@ -22,7 +22,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState<boolean>(!!getToken())
 
   const logout = useCallback(() => {
+    // Best-effort server-side revocation of the refresh token; clear local state
+    // regardless of the result so logout always succeeds from the user's view.
+    const refreshToken = getRefreshToken()
+    if (refreshToken) {
+      void authApi.logout(refreshToken).catch(() => {})
+    }
     setToken(null)
+    setRefreshToken(null)
     setTokenState(null)
     setUser(null)
   }, [])
@@ -56,8 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [token, logout])
 
-  const applyAuth = useCallback((newToken: string, u: User) => {
+  const applyAuth = useCallback((newToken: string, refreshToken: string, u: User) => {
     setToken(newToken)
+    setRefreshToken(refreshToken)
     setTokenState(newToken)
     setUser(u)
   }, [])
@@ -65,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (identifier: string, password: string) => {
       const res = await authApi.login(identifier, password)
-      applyAuth(res.token, res.user)
+      applyAuth(res.token, res.refresh_token, res.user)
     },
     [applyAuth],
   )
@@ -73,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = useCallback(
     async (email: string, password: string, displayName: string, username?: string) => {
       const res = await authApi.register(email, password, displayName, username)
-      applyAuth(res.token, res.user)
+      applyAuth(res.token, res.refresh_token, res.user)
     },
     [applyAuth],
   )
