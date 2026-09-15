@@ -24,6 +24,32 @@ func TestNormalizeName(t *testing.T) {
 	}
 }
 
+// TestIdentityKey covers the O(n) grouping key used to bucket exercises by
+// movement (PRD 0014): catalog-linked exercises key on their catalog id (name
+// irrelevant), custom exercises on their normalized name, and the two never
+// collide. Equal keys must agree with SameIdentity.
+func TestIdentityKey(t *testing.T) {
+	catA := "11111111-1111-1111-1111-111111111111"
+
+	if got := exercise.IdentityKey(&catA, "Lateral Raise"); got != "cat:"+catA {
+		t.Errorf("linked key = %q, want %q", got, "cat:"+catA)
+	}
+	if got := exercise.IdentityKey(nil, "  Lateral Raise "); got != "name:lateral raise" {
+		t.Errorf("custom key = %q, want %q", got, "name:lateral raise")
+	}
+	// A linked exercise and a custom exercise whose name equals the catalog id
+	// string must still not collide (distinct prefixes).
+	if exercise.IdentityKey(&catA, "x") == exercise.IdentityKey(nil, catA) {
+		t.Error("linked and custom keys collided")
+	}
+	// Key equality must match SameIdentity.
+	catB := catA
+	if (exercise.IdentityKey(&catA, "a") == exercise.IdentityKey(&catB, "b")) !=
+		exercise.SameIdentity(&catA, "a", &catB, "b") {
+		t.Error("IdentityKey equality disagrees with SameIdentity")
+	}
+}
+
 // TestSameIdentity is the single rule for "same movement" that drives shared
 // history aggregation (PRD 0014).
 func TestSameIdentity(t *testing.T) {
