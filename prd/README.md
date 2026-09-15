@@ -35,6 +35,7 @@ for the full document structure.
 | [0013](0013-session-history.md) | Session History & Rich Session Detail | Approved | web |
 | [0014](0014-shared-exercise-history-across-routines.md) | Shared Exercise History Across Routines | Approved | api |
 | [0015](0015-cardio-toggle-and-session-history-detail.md) | Cardio Toggle on the Muscle Heatmap & a Distinct Session-History Detail | Approved | web |
+| [0016](0016-shared-last-set-across-routines.md) | Shared "Last Set to Beat" Across Routines | Approved | api |
 
 ## Status values
 
