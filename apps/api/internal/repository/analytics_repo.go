@@ -180,22 +180,25 @@ func (r *AnalyticsRepository) VolumeSeries(ctx context.Context, userID string, f
 
 // MuscleGroupRow aggregates one primary muscle group over the window.
 type MuscleGroupRow struct {
-	MuscleGroup string
-	Sets        int
-	Volume      float64 // kilograms, unit-normalized
-	Frequency   int     // distinct sessions that trained the group
+	MuscleGroup     string
+	Sets            int
+	Volume          float64 // kilograms, unit-normalized
+	Frequency       int     // distinct sessions that trained the group
+	DurationSeconds int     // total logged duration across timed set entries
 }
 
-// MuscleGroups returns per-primary-muscle-group sets, unit-normalized volume, and
-// session frequency over [from, to). Sets/frequency come from the persisted
-// session_exercise aggregates; volume is summed from normalized set rows so the
-// two never double-count each other.
+// MuscleGroups returns per-primary-muscle-group sets, unit-normalized volume,
+// session frequency, and total timed duration over [from, to). Sets/frequency
+// come from the persisted session_exercise aggregates; volume is summed from
+// normalized set rows and duration from timed set rows, each in its own lateral
+// so the aggregates never double-count each other.
 func (r *AnalyticsRepository) MuscleGroups(ctx context.Context, userID string, from, to time.Time) ([]MuscleGroupRow, error) {
 	const q = `
 		SELECT sx.primary_muscle_group::text,
 		       COALESCE(SUM(sx.sets_completed), 0) AS sets,
 		       COUNT(DISTINCT sx.session_id) AS freq,
-		       COALESCE(SUM(vol.v), 0) AS volume
+		       COALESCE(SUM(vol.v), 0) AS volume,
+		       COALESCE(SUM(dur.d), 0) AS duration
 		FROM session_exercises sx
 		JOIN workout_sessions s ON s.id = sx.session_id
 		LEFT JOIN LATERAL (
@@ -204,6 +207,12 @@ func (r *AnalyticsRepository) MuscleGroups(ctx context.Context, userID string, f
 			WHERE se.session_exercise_id = sx.id
 			  AND se.weight IS NOT NULL AND se.reps IS NOT NULL
 		) vol ON true
+		LEFT JOIN LATERAL (
+			SELECT SUM(se.duration_seconds) AS d
+			FROM set_entries se
+			WHERE se.session_exercise_id = sx.id
+			  AND se.duration_seconds IS NOT NULL
+		) dur ON true
 		WHERE s.user_id = $1 AND s.status = 'completed'
 		  AND ` + sessionDate + ` >= $2 AND ` + sessionDate + ` < $3
 		GROUP BY sx.primary_muscle_group
@@ -216,7 +225,7 @@ func (r *AnalyticsRepository) MuscleGroups(ctx context.Context, userID string, f
 	out := []MuscleGroupRow{}
 	for rows.Next() {
 		var m MuscleGroupRow
-		if err := rows.Scan(&m.MuscleGroup, &m.Sets, &m.Frequency, &m.Volume); err != nil {
+		if err := rows.Scan(&m.MuscleGroup, &m.Sets, &m.Frequency, &m.Volume, &m.DurationSeconds); err != nil {
 			return nil, err
 		}
 		out = append(out, m)

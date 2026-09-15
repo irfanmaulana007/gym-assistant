@@ -8,7 +8,7 @@ import type { MuscleGroupStat } from '@/types/api'
 // quiet empty note when there is nothing to show or the image fails to load.
 
 function stat(muscle_group: string, sets: number): MuscleGroupStat {
-  return { muscle_group, sets, volume: 0, frequency: 0, undertrained: false }
+  return { muscle_group, sets, volume: 0, frequency: 0, undertrained: false, duration_seconds: 0 }
 }
 
 describe('MuscleUsageDiagram', () => {

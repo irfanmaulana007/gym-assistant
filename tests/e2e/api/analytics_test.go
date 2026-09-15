@@ -264,6 +264,59 @@ func TestAnalyticsDashboard_Aggregations_E2E(t *testing.T) {
 	}
 }
 
+// TestAnalyticsMuscleGroups_CardioDuration_E2E proves the muscle-group breakdown
+// exposes total timed duration for a cardio exercise: two bouts of 900s + 600s
+// aggregate to 1500s across 2 "sets", so the dashboard can show duration instead
+// of a sets count for cardio.
+func TestAnalyticsMuscleGroups_CardioDuration_E2E(t *testing.T) {
+	h := newHarnessWithDB(t)
+	token := h.registerUser(t, "analytics-cardio@example.com", "supersecret1", "Cardio")
+	routine := h.createRoutine(t, token, "Conditioning", "")
+	h.addExercise(t, token, routine, map[string]any{
+		"name": "Treadmill", "measurement_type": "duration",
+		"target_duration_seconds": 1200, "primary_muscle_group": "cardio",
+	})
+
+	s, sx := h.startSession(t, token, routine)
+	h.logSet(t, token, sx["Treadmill"], map[string]any{"duration_seconds": 900})
+	h.logSet(t, token, sx["Treadmill"], map[string]any{"duration_seconds": 600})
+	h.completeSession(t, token, s)
+
+	resp := h.do(t, http.MethodGet, "/api/v1/analytics/dashboard?window=all&tz=UTC", token, nil)
+	if resp.Status != http.StatusOK {
+		t.Fatalf("dashboard status %d body %s", resp.Status, resp.Body)
+	}
+	var dash struct {
+		MuscleGroups []struct {
+			MuscleGroup     string `json:"muscle_group"`
+			Sets            int    `json:"sets"`
+			Frequency       int    `json:"frequency"`
+			DurationSeconds int    `json:"duration_seconds"`
+		} `json:"muscle_groups"`
+	}
+	resp.decode(t, &dash)
+
+	var found bool
+	for _, m := range dash.MuscleGroups {
+		if m.MuscleGroup != "cardio" {
+			continue
+		}
+		found = true
+		if m.DurationSeconds != 1500 {
+			t.Errorf("cardio duration_seconds = %d, want 1500 (900 + 600)", m.DurationSeconds)
+		}
+		if m.Sets != 2 {
+			t.Errorf("cardio sets = %d, want 2 (two logged bouts)", m.Sets)
+		}
+		if m.Frequency != 1 {
+			t.Errorf("cardio frequency = %d, want 1", m.Frequency)
+		}
+	}
+	if !found {
+		t.Fatalf("cardio muscle group missing from dashboard: %+v", dash.MuscleGroups)
+	}
+}
+
 // TestAnalytics_CrossUserIsolation_E2E proves analytics never leak another
 // user's rows.
 func TestAnalytics_CrossUserIsolation_E2E(t *testing.T) {
