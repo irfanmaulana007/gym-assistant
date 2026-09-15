@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/lib/auth'
 import { ExerciseCard } from '@/features/sessions/ExerciseCard'
-import type { SessionExercise } from '@/types/api'
+import type { SessionExercise, SetEntry } from '@/types/api'
 
 // The set-logging weight input defaults its unit to the user's preferred weight
 // unit (PRD 0008 §4.4) rather than a hardcoded kg.
@@ -111,5 +111,116 @@ describe('ExerciseCard weight unit default', () => {
 
     await waitFor(() => expect(bodies.length).toBe(1))
     expect(bodies[0]).toMatchObject({ weight: 135, reps: 8, weight_unit: 'lb' })
+  })
+})
+
+// PRD 0012: a logged set can be corrected (or deleted) in place while the
+// session runs. The entry pill exposes an Edit control that pre-fills the
+// current values; Save PATCHes /entries/{id} and Delete DELETEs it.
+const ENTRY: SetEntry = {
+  id: 'en1',
+  session_exercise_id: 'sx1',
+  entry_number: 1,
+  weight: 600,
+  weight_unit: 'kg',
+  reps: 8,
+  duration_seconds: null,
+  distance: null,
+  distance_unit: null,
+  incline: null,
+  speed: null,
+  rpe: null,
+  is_completed: true,
+  performed_at: '2026-09-15T10:00:00Z',
+  metadata: {},
+  created_at: '2026-09-15T10:00:00Z',
+}
+
+function renderCardWithEntry() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>
+        <AuthProvider>
+          <ExerciseCard sessionId="s1" sx={{ ...SX, entries: [ENTRY] }} disabled={false} />
+        </AuthProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
+describe('ExerciseCard edit/delete a logged set (PRD 0012)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    localStorage.clear()
+  })
+
+  it('pre-fills the current weight and PATCHes the corrected value on Save', async () => {
+    localStorage.setItem('gym.token', 'jwt-token')
+    const calls: { url: string; method: string; body?: string }[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input.toString()
+        const method = init?.method ?? 'GET'
+        calls.push({ url, method, body: init?.body as string | undefined })
+        if (method === 'PATCH') {
+          return new Response(JSON.stringify({ ...ENTRY, weight: 60 }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        return new Response(
+          JSON.stringify({ id: '1', email: 'a@b.com', display_name: 'A', preferred_weight_unit: 'kg' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }),
+    )
+
+    renderCardWithEntry()
+    const user = userEvent.setup()
+
+    // The set renders read-only, then Edit reveals inputs pre-filled with 600.
+    expect(screen.getByText('600kg × 8')).toBeInTheDocument()
+    await user.click(await screen.findByRole('button', { name: /edit set 1 of bench/i }))
+    const weightInput = screen.getByLabelText('Bench set 1 weight') as HTMLInputElement
+    expect(weightInput.value).toBe('600')
+
+    await user.clear(weightInput)
+    await user.type(weightInput, '60')
+    await user.click(screen.getByRole('button', { name: /save set 1 of bench/i }))
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true))
+    const patch = calls.find((c) => c.method === 'PATCH')!
+    expect(patch.url).toMatch(/\/api\/v1\/entries\/en1$/)
+    expect(JSON.parse(patch.body as string)).toEqual({ weight: 60, reps: 8, weight_unit: 'kg' })
+  })
+
+  it('DELETEs the entry when Delete is tapped in the edit state', async () => {
+    localStorage.setItem('gym.token', 'jwt-token')
+    const calls: { url: string; method: string }[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input.toString()
+        const method = init?.method ?? 'GET'
+        calls.push({ url, method })
+        if (method === 'DELETE') return new Response(null, { status: 204 })
+        return new Response(
+          JSON.stringify({ id: '1', email: 'a@b.com', display_name: 'A', preferred_weight_unit: 'kg' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }),
+    )
+
+    renderCardWithEntry()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: /edit set 1 of bench/i }))
+    await user.click(screen.getByRole('button', { name: /delete set 1 of bench/i }))
+
+    await waitFor(() => expect(calls.some((c) => c.method === 'DELETE')).toBe(true))
+    const del = calls.find((c) => c.method === 'DELETE')!
+    expect(del.url).toMatch(/\/api\/v1\/entries\/en1$/)
   })
 })
