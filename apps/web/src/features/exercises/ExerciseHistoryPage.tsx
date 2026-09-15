@@ -7,6 +7,7 @@ import { Sheet } from '@/components/Sheet'
 import { Segmented } from '@/components/Segmented'
 import { Button, ErrorText, Spinner } from '@/components/ui'
 import { MuscleDiagram } from '@/components/MuscleDiagram'
+import { Collapsible } from '@/components/Collapsible'
 import { PencilIcon } from '@/components/icons'
 import { EMPTY_EXERCISE_FORM, ExerciseFormFields, MEASUREMENT_LABELS, exerciseToInput, normalizeExerciseInput } from './ExerciseForm'
 import { muscleGroupLabel } from '@/types/api'
@@ -200,22 +201,44 @@ export function ExerciseHistoryPage() {
             </div>
           ) : (
             <ul className="list">
-              {[...sessions].reverse().map((s) => (
-                <li key={s.session_id} className="list-item">
-                  <div className="row-between">
-                    <span className="muted">{formatDate(s.performed_at)}</span>
-                    {s.top_set ? (
-                      <strong>
-                        {s.top_set.weight}
-                        {s.top_set.weight_unit} × {s.top_set.reps}
-                      </strong>
+              {[...sessions].reverse().map((s) => {
+                const summary = (
+                  <>
+                    <div className="row-between">
+                      <span className="muted">{formatDate(s.performed_at)}</span>
+                      {s.top_set ? (
+                        <strong>
+                          {s.top_set.weight}
+                          {s.top_set.weight_unit} × {s.top_set.reps}
+                        </strong>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </div>
+                    <div className="row-sub">Volume {s.total_volume.toLocaleString()} · {s.sets.length} sets</div>
+                  </>
+                )
+                const unit = s.top_set?.weight_unit ?? ''
+                return (
+                  <li key={s.session_id} className="list-item">
+                    {s.sets.length > 0 ? (
+                      <Collapsible ariaLabel={`Show sets from ${formatDate(s.performed_at)}`} summary={summary}>
+                        {s.sets.map((set) => (
+                          <div key={set.set_number} className="entry-row">
+                            <span className="idx">Set {set.set_number}</span>
+                            <span className="val">
+                              {set.weight ?? '—'}
+                              {set.weight != null ? unit : ''} × {set.reps ?? '—'}
+                            </span>
+                          </div>
+                        ))}
+                      </Collapsible>
                     ) : (
-                      <span className="muted">—</span>
+                      summary
                     )}
-                  </div>
-                  <div className="row-sub">Volume {s.total_volume.toLocaleString()} · {s.sets.length} sets</div>
-                </li>
-              ))}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>
