@@ -71,11 +71,12 @@ type VolumePoint struct {
 
 // MuscleGroupStat is one muscle group's coverage over the window.
 type MuscleGroupStat struct {
-	MuscleGroup  string  `json:"muscle_group"`
-	Sets         int     `json:"sets"`
-	Volume       float64 `json:"volume"`
-	Frequency    int     `json:"frequency"`
-	Undertrained bool    `json:"undertrained"`
+	MuscleGroup     string  `json:"muscle_group"`
+	Sets            int     `json:"sets"`
+	Volume          float64 `json:"volume"`
+	Frequency       int     `json:"frequency"`
+	Undertrained    bool    `json:"undertrained"`
+	DurationSeconds int     `json:"duration_seconds"`
 }
 
 // CalendarDay is one day's completed-session count for the activity calendar.
@@ -365,11 +366,12 @@ func (s *AnalyticsService) muscleGroups(ctx context.Context, userID string, w an
 	out := make([]MuscleGroupStat, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, MuscleGroupStat{
-			MuscleGroup:  r.MuscleGroup,
-			Sets:         r.Sets,
-			Volume:       analytics.Round2(r.Volume),
-			Frequency:    r.Frequency,
-			Undertrained: analytics.IsUndertrained(r.MuscleGroup, r.Sets, weeks),
+			MuscleGroup:     r.MuscleGroup,
+			Sets:            r.Sets,
+			Volume:          analytics.Round2(r.Volume),
+			Frequency:       r.Frequency,
+			Undertrained:    analytics.IsUndertrained(r.MuscleGroup, r.Sets, weeks),
+			DurationSeconds: r.DurationSeconds,
 		})
 	}
 	return out, nil

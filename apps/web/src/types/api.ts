@@ -303,6 +303,9 @@ export interface MuscleGroupStat {
   volume: number
   frequency: number
   undertrained: boolean
+  // Total logged duration across timed set entries for the group (seconds).
+  // Only meaningful for time-based work like cardio; 0 for pure strength groups.
+  duration_seconds: number
 }
 
 export interface ExerciseTrend {
