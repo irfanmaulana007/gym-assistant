@@ -154,7 +154,7 @@ export function RoutineDetailPage() {
       <ExercisePickerSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        routineId={id}
+        target={{ kind: 'routine', routineId: id }}
         onAdded={invalidate}
       />
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { exercisesApi, type ExerciseInput } from '@/api/routines'
+import { sessionsApi, type AdHocExerciseInput } from '@/api/sessions'
 import { ApiError } from '@/api/client'
 import { Sheet } from '@/components/Sheet'
 import { Button, ErrorText, Field, Spinner } from '@/components/ui'
@@ -37,21 +38,45 @@ const DEFAULT_TARGETS: TargetsForm = {
   target_minutes: 30,
 }
 
-// ExercisePickerSheet is the "Add exercise" flow (PRD 0006): pick a known
+// Map the catalog-targets form into the session ad-hoc payload (PRD 0017): the
+// name + catalog link + per-workout targets. Muscle groups are resolved server-
+// side from the catalog, so they are not sent.
+function toAdHocInput(input: ExerciseInput): AdHocExerciseInput {
+  return {
+    name: input.name ?? '',
+    catalog_exercise_id: input.catalog_exercise_id ?? undefined,
+    measurement_type: input.measurement_type,
+    target_sets: input.target_sets,
+    target_reps: input.target_reps,
+    target_duration_seconds: input.target_duration_seconds,
+  }
+}
+
+// PickerTarget is where a picked exercise is saved:
+//   - routine: add it to a routine (PRD 0006), with a free-text custom fallback.
+//   - session: add it to a live session as a session-scoped, catalog-linked
+//     ad-hoc exercise (PRD 0017) — catalog-only, no custom fallback.
+export type PickerTarget =
+  | { kind: 'routine'; routineId: string }
+  | { kind: 'session'; sessionId: string }
+
+// ExercisePickerSheet is the "Add exercise" flow (PRD 0006 / 0017): pick a known
 // movement from the shared catalog (muscle groups come from the catalog), enter
-// only the per-workout targets, and save — or fall back to the free-text
-// "Custom exercise" form for movements not in the catalog.
+// only the per-workout targets, and save. For a routine target it also offers the
+// free-text "Custom exercise" form; for a session target it is catalog-only.
 export function ExercisePickerSheet({
   open,
   onClose,
-  routineId,
+  target,
   onAdded,
 }: {
   open: boolean
   onClose: () => void
-  routineId: string
+  target: PickerTarget
   onAdded: () => void
 }) {
+  // Routine adds allow a free-text custom exercise; session adds are catalog-only.
+  const allowCustom = target.kind === 'routine'
   const [step, setStep] = useState<Step>('list')
   const [search, setSearch] = useState('')
   const [muscleFilter, setMuscleFilter] = useState<MuscleGroup | null>(null)
@@ -75,7 +100,10 @@ export function ExercisePickerSheet({
   }, [open])
 
   const addMut = useMutation({
-    mutationFn: (input: ExerciseInput) => exercisesApi.create(routineId, input),
+    mutationFn: async (input: ExerciseInput) =>
+      target.kind === 'routine'
+        ? exercisesApi.create(target.routineId, input)
+        : sessionsApi.addExercise(target.sessionId, toAdHocInput(input)),
     onSuccess: () => {
       onAdded()
       onClose()
@@ -103,7 +131,7 @@ export function ExercisePickerSheet({
     e.preventDefault()
     if (!selected) return
     setError('')
-    addMut.mutate({
+    const base: ExerciseInput = {
       catalog_exercise_id: selected.id,
       ...normalizeTargets({
         measurement_type: targets.measurement_type,
@@ -111,7 +139,11 @@ export function ExercisePickerSheet({
         target_reps: targets.target_reps,
         target_duration_seconds: targets.target_minutes * 60,
       }),
-    })
+    }
+    // A routine add lets the server default the name from the catalog (its
+    // existing contract); a session ad-hoc carries the catalog name explicitly so
+    // the checklist row is labeled without a follow-up read.
+    addMut.mutate(target.kind === 'session' ? { ...base, name: selected.name } : base)
   }
 
   function onSaveCustom(e: FormEvent) {
@@ -188,9 +220,11 @@ export function ExercisePickerSheet({
             </ul>
           )}
 
-          <Button type="button" variant="ghost" block onClick={() => { setError(''); setStep('custom') }}>
-            Custom exercise
-          </Button>
+          {allowCustom ? (
+            <Button type="button" variant="ghost" block onClick={() => { setError(''); setStep('custom') }}>
+              Custom exercise
+            </Button>
+          ) : null}
         </div>
       ) : step === 'targets' && selected ? (
         <form className="stack" onSubmit={onSaveTargets}>
