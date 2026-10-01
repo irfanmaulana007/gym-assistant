@@ -136,6 +136,7 @@ type adHocExerciseRequest struct {
 	TargetDurationSeconds *int     `json:"target_duration_seconds"`
 	PrimaryMuscleGroup    *string  `json:"primary_muscle_group"`
 	SecondaryMuscleGroups []string `json:"secondary_muscle_groups"`
+	CatalogExerciseID     *string  `json:"catalog_exercise_id"`
 }
 
 // AddExercise adds an ad-hoc exercise to a live session.
@@ -155,6 +156,7 @@ func (h *SessionHandler) AddExercise(w http.ResponseWriter, r *http.Request) {
 		TargetDurationSeconds: req.TargetDurationSeconds,
 		PrimaryMuscleGroup:    req.PrimaryMuscleGroup,
 		SecondaryMuscleGroups: req.SecondaryMuscleGroups,
+		CatalogExerciseID:     req.CatalogExerciseID,
 	}
 	sx, err := h.svc.AddAdHocExercise(r.Context(), userID, chi.URLParam(r, "id"), in)
 	if err != nil {

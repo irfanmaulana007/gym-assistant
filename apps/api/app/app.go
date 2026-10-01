@@ -60,7 +60,7 @@ func New(pool *pgxpool.Pool, cfg Config) http.Handler {
 		routineSvc := service.NewRoutineService(routineRepo, exerciseRepo)
 		exerciseSvc := service.NewExerciseService(exerciseRepo, catalogRepo)
 		catalogSvc := service.NewCatalogService(catalogRepo)
-		sessionSvc := service.NewSessionService(sessionRepo, userRepo)
+		sessionSvc := service.NewSessionService(sessionRepo, userRepo, catalogRepo)
 		analyticsSvc := service.NewAnalyticsService(analyticsRepo)
 
 		deps.Auth = handler.NewAuthHandler(authSvc)

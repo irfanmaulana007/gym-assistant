@@ -37,9 +37,14 @@ type SessionEvent struct {
 // SessionExercise is a checklist item + snapshot + per-exercise aggregates
 // (PRD 0002 §5.4).
 type SessionExercise struct {
-	ID                    string     `json:"id"`
-	SessionID             string     `json:"session_id"`
-	ExerciseID            *string    `json:"exercise_id"`
+	ID         string  `json:"id"`
+	SessionID  string  `json:"session_id"`
+	ExerciseID *string `json:"exercise_id"`
+	// CatalogExerciseID links an ad-hoc (session-scoped) exercise to a shared
+	// catalog entry (PRD 0017). NULL for routine snapshots and legacy free-text
+	// ad-hoc rows; when set, the row's name/muscle groups resolve from the catalog
+	// and its logged sets share the movement's history and trend.
+	CatalogExerciseID     *string    `json:"catalog_exercise_id"`
 	Position              int        `json:"position"`
 	NameSnapshot          string     `json:"name_snapshot"`
 	MeasurementType       string     `json:"measurement_type"`
