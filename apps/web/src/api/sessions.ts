@@ -16,6 +16,9 @@ export interface AdHocExerciseInput {
   target_reps?: number | null
   target_duration_seconds?: number | null
   primary_muscle_group?: MuscleGroup
+  // When set, the API links the ad-hoc exercise to a catalog entry (PRD 0017)
+  // and resolves its name/muscle groups/measurement type from the catalog.
+  catalog_exercise_id?: string
 }
 
 export interface EntryInput {

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ExercisePickerSheet } from '@/features/exercises/ExercisePickerSheet'
+import { ExercisePickerSheet, type PickerTarget } from '@/features/exercises/ExercisePickerSheet'
 
 function jsonResponse(status: number, body: unknown) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -58,13 +58,13 @@ function mockFetch() {
   return posts
 }
 
-function renderSheet() {
+function renderSheet(target: PickerTarget = { kind: 'routine', routineId: 'r1' }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const onAdded = vi.fn()
   const onClose = vi.fn()
   render(
     <QueryClientProvider client={qc}>
-      <ExercisePickerSheet open onClose={onClose} routineId="r1" onAdded={onAdded} />
+      <ExercisePickerSheet open onClose={onClose} target={target} onAdded={onAdded} />
     </QueryClientProvider>,
   )
   return { onAdded, onClose }
@@ -142,5 +142,33 @@ describe('ExercisePickerSheet', () => {
     expect(body.name).toBe('Banded Pull-Apart')
     expect(body.primary_muscle_group).toBe('shoulders')
     expect(body).not.toHaveProperty('catalog_exercise_id')
+  })
+
+  // PRD 0017 — the same picker, in session mode, adds a session-scoped,
+  // catalog-linked ad-hoc exercise. It is catalog-only (no custom fallback) and
+  // posts to the session endpoint with the catalog link + name + targets.
+  it('session mode is catalog-only (no Custom exercise fallback)', async () => {
+    mockFetch()
+    renderSheet({ kind: 'session', sessionId: 's1' })
+    await screen.findByText('Barbell Bench Press')
+    expect(screen.queryByRole('button', { name: /custom exercise/i })).not.toBeInTheDocument()
+  })
+
+  it('session mode posts catalog_exercise_id + name + targets to the session endpoint', async () => {
+    const posts = mockFetch()
+    const { onAdded } = renderSheet({ kind: 'session', sessionId: 's1' })
+    await userEvent.click(await screen.findByRole('button', { name: /add barbell bench press/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^add barbell bench press$/i }))
+
+    await waitFor(() => expect(posts.length).toBe(1))
+    const { url, body } = posts[0]
+    expect(url).toContain('/api/v1/sessions/s1/exercises')
+    expect(body.catalog_exercise_id).toBe('c-bench')
+    expect(body.name).toBe('Barbell Bench Press')
+    expect(body.target_sets).toBe(3)
+    expect(body.target_reps).toBe(12)
+    expect(body).not.toHaveProperty('primary_muscle_group')
+    expect(body).not.toHaveProperty('secondary_muscle_groups')
+    expect(onAdded).toHaveBeenCalled()
   })
 })

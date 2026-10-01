@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { sessionsApi } from '@/api/sessions'
@@ -6,7 +6,8 @@ import { routinesApi } from '@/api/routines'
 import { routinesById, sessionGroupLabel } from '@/lib/sessionGroup'
 import { Layout } from '@/components/Layout'
 import { Sheet } from '@/components/Sheet'
-import { Button, ErrorText, Field, Spinner } from '@/components/ui'
+import { Button, ErrorText, Spinner } from '@/components/ui'
+import { ExercisePickerSheet } from '@/features/exercises/ExercisePickerSheet'
 import { useElapsed } from '@/hooks/useElapsed'
 import { useFlipList } from '@/hooks/useFlipList'
 import { ACTIVE_SESSION_KEY } from '@/hooks/useActiveSession'
@@ -29,8 +30,7 @@ export function ActiveSessionPage() {
   // title (same source as the History list) — falls back to "Workout".
   const { data: routines } = useQuery({ queryKey: ['routines'], queryFn: routinesApi.list })
 
-  const [adHocName, setAdHocName] = useState('')
-  const [error, setError] = useState('')
+  const [pickerOpen, setPickerOpen] = useState(false)
   // Confirmation sheet shown on Stop so an accidental tap can't silently end the
   // workout — the user picks Save (complete) or Discard (abandon) deliberately.
   const [stopOpen, setStopOpen] = useState(false)
@@ -68,15 +68,6 @@ export function ActiveSessionPage() {
     },
     onError: () => setStopError('Could not discard the workout. Try again.'),
   })
-  const addMut = useMutation({
-    mutationFn: (name: string) => sessionsApi.addExercise(id, { name, measurement_type: 'weight_reps', primary_muscle_group: 'other' }),
-    onSuccess: () => {
-      setAdHocName('')
-      invalidate()
-    },
-    onError: () => setError('Could not add exercise'),
-  })
-
   const running = session?.status === 'active'
   const elapsed = useElapsed(session?.started_at ?? null, running)
 
@@ -125,13 +116,6 @@ export function ActiveSessionPage() {
     )
   }
 
-  function onAddAdHoc(e: FormEvent) {
-    e.preventDefault()
-    setError('')
-    if (!adHocName.trim()) return
-    addMut.mutate(adHocName.trim())
-  }
-
   const paused = session.status === 'paused'
 
   return (
@@ -174,21 +158,16 @@ export function ActiveSessionPage() {
         ))}
       </ul>
 
-      <form className="card row" onSubmit={onAddAdHoc}>
-        <div className="grow">
-          <Field
-            label="Add exercise"
-            name="adhoc"
-            placeholder="e.g. Incline Walk"
-            value={adHocName}
-            onChange={(e) => setAdHocName(e.target.value)}
-          />
-        </div>
-        <Button type="submit" style={{ alignSelf: 'end' }} disabled={addMut.isPending}>
-          Add
-        </Button>
-      </form>
-      <ErrorText>{error}</ErrorText>
+      <Button variant="primary" block onClick={() => setPickerOpen(true)}>
+        Add exercise
+      </Button>
+
+      <ExercisePickerSheet
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        target={{ kind: 'session', sessionId: id }}
+        onAdded={invalidate}
+      />
 
       <Sheet open={stopOpen} onClose={() => setStopOpen(false)} title="Finish workout?">
         <div className="stack">

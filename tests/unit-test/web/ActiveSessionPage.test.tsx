@@ -178,6 +178,37 @@ describe('ActiveSessionPage — Stop confirmation sheet', () => {
     expect(screen.queryByText(/nice work/i)).not.toBeInTheDocument()
   })
 
+  it('Add exercise opens the catalog picker (no free-text name field) — PRD 0017', async () => {
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      const u = String(url)
+      if (u.includes('/api/v1/exercise-catalog')) {
+        return jsonResponse(200, {
+          exercises: [
+            {
+              id: 'c-pull',
+              name: 'Pull Up',
+              primary_muscle_group: 'back',
+              secondary_muscle_groups: ['biceps'],
+              default_measurement_type: 'weight_reps',
+              created_at: '',
+              updated_at: '',
+            },
+          ],
+        })
+      }
+      return jsonResponse(200, activeSession())
+    }) as unknown as typeof fetch
+    renderPage(fetchMock)
+
+    await userEvent.click(await screen.findByRole('button', { name: /add exercise/i }))
+
+    // The catalog picker opens (search + a catalog entry) instead of the old
+    // free-text "e.g. Incline Walk" input.
+    expect(await screen.findByLabelText('Search')).toBeInTheDocument()
+    expect(await screen.findByText('Pull Up')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText(/incline walk/i)).not.toBeInTheDocument()
+  })
+
   it('Keep going closes the sheet without calling either endpoint', async () => {
     const calls: { url: string; method: string }[] = []
     const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
