@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/domain"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/repository"
@@ -22,14 +24,17 @@ type sessionUsers interface {
 // SessionService orchestrates the workout-session lifecycle, the exercise
 // checklist, ad-hoc exercises, and set-entry logging (PRD 0002).
 type SessionService struct {
-	repo  *repository.SessionRepository
-	users sessionUsers
+	repo    *repository.SessionRepository
+	users   sessionUsers
+	catalog catalogReader
 }
 
 // NewSessionService builds a SessionService. users may be nil, in which case a
-// missing weight unit falls back to kg (pre-PRD-0008 behavior).
-func NewSessionService(repo *repository.SessionRepository, users sessionUsers) *SessionService {
-	return &SessionService{repo: repo, users: users}
+// missing weight unit falls back to kg (pre-PRD-0008 behavior). catalog resolves
+// a catalog-linked ad-hoc exercise's metadata (PRD 0017); a nil catalog rejects
+// any catalog-linked add with a validation error.
+func NewSessionService(repo *repository.SessionRepository, users sessionUsers, catalog catalogReader) *SessionService {
+	return &SessionService{repo: repo, users: users, catalog: catalog}
 }
 
 // Start begins a session for a routine the user owns. It enforces a single live
@@ -107,7 +112,11 @@ func (s *SessionService) UpdateSessionExercise(ctx context.Context, userID, id s
 	return sx, nil
 }
 
-// AddAdHocExercise adds an on-the-spot exercise to a live session.
+// AddAdHocExercise adds an on-the-spot exercise to a live session. When the
+// input links a catalog entry (PRD 0017), the name/measurement type/muscle groups
+// are resolved from the catalog (request muscle fields are ignored) so the ad-hoc
+// exercise behaves like a registered one; otherwise the legacy free-text path
+// applies (name required, muscle groups from the request).
 func (s *SessionService) AddAdHocExercise(ctx context.Context, userID, sessionID string, in repository.AdHocExerciseInput) (*domain.SessionExercise, error) {
 	session, err := s.repo.GetByID(ctx, userID, sessionID)
 	if err != nil {
@@ -116,6 +125,37 @@ func (s *SessionService) AddAdHocExercise(ctx context.Context, userID, sessionID
 	if session.Status != "active" && session.Status != "paused" {
 		return nil, httpx.NewAPIError(http.StatusConflict, httpx.CodeConflict, "session is not live")
 	}
+
+	if in.CatalogExerciseID != nil {
+		if s.catalog == nil {
+			return nil, validationErr(map[string]any{"catalog_exercise_id": "catalog lookups are unavailable"})
+		}
+		cat, err := s.catalog.GetByID(ctx, *in.CatalogExerciseID)
+		if err != nil {
+			if errors.Is(err, repository.ErrNotFound) {
+				return nil, validationErr(map[string]any{"catalog_exercise_id": "unknown catalog exercise"})
+			}
+			return nil, err
+		}
+		// The catalog is the source of truth for a linked exercise: default the
+		// name/measurement type from it and take its muscle groups, ignoring any
+		// request muscle fields (mirrors the routine add contract, PRD 0006 §4.3).
+		if strings.TrimSpace(in.Name) == "" {
+			in.Name = cat.Name
+		}
+		if in.MeasurementType == nil {
+			mt := cat.DefaultMeasurementType
+			in.MeasurementType = &mt
+		}
+		primary := cat.PrimaryMuscleGroup
+		in.PrimaryMuscleGroup = &primary
+		in.SecondaryMuscleGroups = cat.SecondaryMuscleGroups
+		if details := validateAdHoc(in); len(details) > 0 {
+			return nil, validationErr(details)
+		}
+		return s.repo.AddAdHocExercise(ctx, sessionID, in)
+	}
+
 	if validate.Required("name", in.Name) != "" {
 		return nil, validationErr(map[string]any{"name": "name is required"})
 	}
@@ -281,10 +321,19 @@ func (s *SessionService) load(ctx context.Context, userID, id string) (*domain.W
 	}
 	lastByExercise := indexLastSets(lastRows)
 	for i := range exercises {
-		if exercises[i].ExerciseID == nil {
+		// Routine-backed rows match by their routine exercise id; catalog-linked
+		// ad-hoc rows (no exercise_id) match by their own session_exercise id — the
+		// token LastSetsBeforeSession tags their candidates with (PRD 0017 §4.4).
+		var token string
+		switch {
+		case exercises[i].ExerciseID != nil:
+			token = *exercises[i].ExerciseID
+		case exercises[i].CatalogExerciseID != nil:
+			token = exercises[i].ID
+		default:
 			continue
 		}
-		if ls, ok := lastByExercise[*exercises[i].ExerciseID]; ok {
+		if ls, ok := lastByExercise[token]; ok {
 			last := ls
 			exercises[i].LastSet = &last
 		}
