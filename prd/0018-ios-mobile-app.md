@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Author | Irfan Maulana |
-| Status | Draft |
+| Status | Approved |
 | Created | 2026-10-02 |
 | Updated | 2026-10-02 |
 | App | mobile |
