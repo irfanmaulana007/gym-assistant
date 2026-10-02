@@ -26,6 +26,15 @@ Store presence, no home-screen app with a native splash/icon, no native
 push/haptics/biometric-unlock path, and the usual browser-chrome and
 PWA-reliability compromises during a workout at the gym.
 
+**Critically, the web app assumes connectivity** — every read and write hits the
+API live. But the primary place this app is used is **a gym**, where Wi-Fi is
+flaky and cell signal is often dead (basements, concrete, dense buildings). A
+user mid-set cannot afford a spinner or a failed `POST` when they log their last
+rep. The native app must therefore be **offline-first**: the app is fully usable
+with no connection, every logged set is captured locally and durably the instant
+it happens, and the data syncs to the server transparently when connectivity
+returns — on the same account, visible on web afterward.
+
 **This PRD scopes the first native client: iOS only.** Android is explicitly
 deferred to a later PRD; the stack chosen here must keep that door open cheaply.
 The goal is **feature and visual parity with the web app** — the same screens,
@@ -45,6 +54,12 @@ their history on **both** web and iOS because both talk to the same API.
 - **A native iOS app** under `apps/mobile`, installable via TestFlight and
   submittable to the App Store, that a user signs into with their existing
   account and existing data.
+- **Offline-first** — a **durable local store is the source of truth** the UI
+  reads from and writes to. The entire core workout domain (routines, exercises,
+  sessions, logged sets) is **viewable and editable with no connection**; logging
+  a set never blocks on the network. Changes are queued and **synced
+  transparently** when connectivity returns, so the same account is consistent
+  across iOS and web (§4.5).
 - **Parity with the web UI** — every top-level screen and flow the web has today
   (see §4.2) exists on iOS with the **same layout, information architecture, and
   navigation model** (bottom tab bar + pushed detail screens + bottom sheets for
@@ -66,53 +81,78 @@ their history on **both** web and iOS because both talk to the same API.
 
 - **No Android app** in this PRD (deferred to a later PRD; the stack keeps it
   cheap).
-- **No API/backend changes.** If a parity gap needs a new endpoint, that is a
-  separate `[api]` PRD; this PRD consumes the contract as-is.
+- **Minimise API/backend changes.** The app consumes the existing `/api/v1`
+  contract as-is wherever possible. Offline sync does, however, require the
+  create/update endpoints to be **idempotent under client-supplied ids /
+  idempotency keys** so a replayed queued mutation can't duplicate data; if the
+  API doesn't already guarantee that, it is a small companion `[api]` PRD called
+  out as a dependency (§4.5, §6). No other backend changes.
 - **No new product features.** This is a port, not a redesign — no screens,
   entities, or flows that the web does not already have. New features continue to
   land web-first and are mirrored to mobile afterward.
-- **No offline-first / local-write sync engine.** v1 is online, reading and
-  writing live against the API like the web does today (standard query-cache
-  freshness only). An offline workout-logging mode is a future PRD.
+- **Offline-first is scoped to the core workout domain.** Routines, exercises,
+  sessions, and logged sets are fully offline-capable (read + write). The
+  **analytics dashboard / muscle-usage** views are server-derived and shown from
+  the last successful fetch when offline (read-only cache, refreshed on
+  reconnect), not recomputed on-device. **Account creation / first login and
+  avatar image upload require connectivity** (documented online-only paths).
+- **Last-write-wins conflict resolution**, not operational-transform / CRDT
+  merge. Given data is single-user and logged sets are append-only, LWW with
+  server timestamps is sufficient (§4.5); a richer merge engine is out of scope.
 - **No web-to-native shared component code** beyond the design *tokens* and the
   API *type* definitions (see §6 — the shared-contract question). We are not
   extracting a cross-platform component library in this PRD.
 
-## 3. Decision — tech stack (needs approval)
+## 3. Decision — tech stack
 
-This is the load-bearing decision of the PRD and the main thing to sign off on.
-
-**Recommendation: Expo (React Native) + TypeScript.**
+**Chosen: a hybrid stack — bare React Native (no Expo) + TypeScript as the app
+framework, with SwiftUI for select native screens/components bridged in as native
+UI modules.** We own the native iOS project (`ios/`, Xcode) directly.
 
 Rationale, scored against this specific codebase:
 
-- **Maximises reuse of what exists.** The web app is React + TypeScript with
-  `@tanstack/react-query` for server state and a hand-rolled typed `fetch`
-  client with transparent token refresh (`apps/web/src/api/*`). React Native
-  keeps the same mental model, the same React Query data layer, and lets us port
-  the API client, the auth/refresh logic, and the TypeScript domain types
-  (`apps/web/src/types`) with minimal change.
-- **The design system ports directly.** Our tokens are plain values (hex,
-  px, cubic-bezier) with no web-only magic; they become a typed theme object
-  consumed by RN `StyleSheet`. The visual language (dark, single column, bottom
-  tabs, sheets) maps 1:1 onto RN primitives and libraries we'd use anyway.
-- **Android is a build target, not a rewrite** — satisfies the "cheap later"
-  goal better than any native-only path.
-- **Expo specifically** gives us EAS Build/Submit (CI builds + TestFlight/App
-  Store submission without a Mac build farm), OTA-capable updates, and
-  first-class modules for the native capabilities we want next (push,
-  haptics, secure storage, biometric unlock).
+- **Bare RN keeps the React/TS reuse.** The web app is React + TypeScript with
+  `@tanstack/react-query` and a hand-rolled typed `fetch` client with transparent
+  token refresh (`apps/web/src/api/*`). Bare React Native keeps the same mental
+  model and lets us port the API client, auth/refresh logic, TypeScript domain
+  types (`apps/web/src/types`), and the design tokens (→ a typed theme consumed by
+  RN `StyleSheet`) with minimal change.
+- **SwiftUI where native earns its keep.** For the highest-fidelity /
+  performance-sensitive surfaces we build the screen (or component) in **SwiftUI**
+  and bridge it in as a native view — candidates: the two anatomical **muscle
+  diagrams**, the **progress charts**, and the **active-session logging** surface
+  (the one screen where native responsiveness/haptics matter most). The exact
+  RN-vs-SwiftUI split is an open question (§6) with a default of "RN for parity
+  screens, SwiftUI only for those candidates".
+- **No Expo — deliberate.** Owning the raw native project is precisely what makes
+  dropping into SwiftUI clean (Expo's managed project needs prebuild/dev-client
+  gymnastics for custom native UI). The cost we accept: we hand-build the
+  build/submit pipeline (**Fastlane + TestFlight**, Xcode toolchain, Apple
+  signing) that Expo's EAS would have given for free.
+- **Offline-first is well-trodden on bare RN.** A durable on-device SQLite
+  database (**`op-sqlite`** / `react-native-sqlite-storage`) plus a thin sync
+  layer (or a library — WatermelonDB, PowerSync, RxDB) gives us the local source
+  of truth and background sync this PRD requires (§4.5).
+- **Android later is cheaper than native-only.** The RN core and all TS logic
+  port; the few SwiftUI screens get Android-native (Compose) or plain-RN
+  equivalents in a follow-on PRD.
 
-**Alternatives considered (and why not, for v1):**
+**Tradeoffs we accept (called out so they're not surprises):**
+
+- **Two UI paradigms + bridge glue.** RN and SwiftUI coexist; a clear, documented
+  boundary (which screens are SwiftUI, and the props/events crossing the bridge)
+  keeps this contained.
+- **More build/release ownership** than Expo (Fastlane, signing, optional OTA via
+  CodePush if we want it) and a required **macOS + Xcode** build environment.
+
+**Alternatives considered (not chosen):**
 
 | Option | Verdict |
 |--------|---------|
-| **Native SwiftUI** | Most "native" and best raw performance, but **zero reuse** of our React/TS API client, types, and token system; every web feature must be re-implemented twice (now + each future web feature), and it slams the door on cheap Android. Rejected for a parity port. |
-| **Capacitor / WebView wrapper** around the existing web app | Fastest to "an app in the store", but it ships the *website* in a shell — not a native app — which **violates the spirit of `.claude/rules/native-mobile-ux.md`** and gives up native push/haptics/biometrics and store-review predictability. Good enough for a PWA; not what "build the mobile app" means here. Rejected. |
-| **Bare React Native (no Expo)** | Same reuse benefits as Expo but we hand-build the build/submit/update pipeline and native module glue. Expo removes that toil with an escape hatch (prebuild/dev-client) if we ever need custom native code. Rejected in favour of Expo. |
-
-> If the reviewer prefers a different stack, that choice changes §4 and §5
-> substantially — so this is the decision to settle before implementation starts.
+| **Pure native SwiftUI** (no RN) | Most native, but **zero reuse** of our React/TS client, types, and tokens, and Android later is a **full separate rewrite**. The hybrid keeps SwiftUI for the surfaces that benefit while preserving reuse. |
+| **Expo (managed RN)** | Smoothest tooling (EAS build/submit, modules), but the managed native project makes **custom SwiftUI bridging awkward** (prebuild/dev-client), and we specifically want direct native control. |
+| **Bare RN only** (no SwiftUI) | Maximum reuse and the simplest build, but forgoes SwiftUI for the surfaces where native fidelity shines — the hybrid deliberately opts into SwiftUI there. |
+| **Capacitor / WebView wrapper** | Ships the *website* in a shell — violates `.claude/rules/native-mobile-ux.md`, and makes offline-first something to bolt onto a web runtime. Rejected. |
 
 ## 4. Design
 
@@ -126,18 +166,24 @@ are navigable the same way:
 
 ```
 apps/mobile/
-  app/ or src/
-    features/   auth, routines, exercises, sessions, progress, profile
-    components/ shared native primitives (Button, Field, Sheet, NavBar, BottomNav, Avatar, Segmented, Switch, Collapsible, MuscleDiagram, …)
+  src/
+    features/   auth, routines, exercises, sessions, progress, profile (RN screens)
+    components/ shared native primitives (Button, Field, Sheet, NavBar, BottomNav, Avatar, Segmented, Switch, Collapsible, …)
+    native/     JS side of the SwiftUI bridge (native-component wrappers + typed props/events)
     api/        ported typed client + per-domain modules (auth, routines, sessions, catalog, analytics)
+    db/         SQLite schema + local repositories (source of truth, §4.5)
+    sync/       outbox queue + pull/push sync worker + conflict policy (§4.5)
     types/      domain types mirroring the API contract
     theme/      design tokens ported from web styles.css
-    lib/        auth context, secure token storage, query client
-  app.json / eas.json   Expo + build/submit config
+    lib/        auth context, secure token storage (Keychain), query client, netinfo
+  ios/          native Xcode project — SwiftUI views + RN native-module bridges (MuscleDiagram, charts, active-session surface)
+  fastlane/     build / TestFlight / App Store submission lanes
+  metro.config.js, package.json, tsconfig.json, …
 ```
 
-Navigation uses a native stack + bottom-tab navigator (e.g. Expo Router or React
-Navigation) to reproduce the web's model exactly.
+Navigation uses **React Navigation** (native stack + bottom-tab navigator) to
+reproduce the web's model exactly. SwiftUI screens are hosted inside RN
+navigators as native-backed views so navigation stays uniform.
 
 ### 4.2 Screen parity (what we port)
 
@@ -179,11 +225,13 @@ controls** for in-page view switching; **press (`:active`) states, no hover**.
 
 > The two muscle **SVG diagrams** and the three dependency-free **chart widgets**
 > (`VolumeChart`, `MuscleBalance`, `ActivityCalendar`) are the highest-effort
-> ports (web renders them as SVG/DOM). They render via `react-native-svg`,
-> reusing the same geometry/data math and the **same token hexes** so the
-> primary/secondary and 4-tier usage colors never drift from
-> `apps/web/src/lib/muscleDiagram.ts` (the constraint called out in PRDs 0009 /
-> 0011).
+> ports (web renders them as SVG/DOM) and are the **primary SwiftUI-bridge
+> candidates** (§3) — rendered as native SwiftUI views for fidelity/performance,
+> or via `react-native-svg` if kept in RN. Either way they reuse the same
+> geometry/data math and the **same token hexes** so the primary/secondary and
+> 4-tier usage colors never drift from `apps/web/src/lib/muscleDiagram.ts` (the
+> constraint called out in PRDs 0009 / 0011); when built in SwiftUI those hexes
+> cross the bridge from the shared theme rather than being re-typed in Swift.
 
 ### 4.3 Design-system port
 
@@ -200,9 +248,9 @@ web; §6 proposes how (shared source vs. mirrored constants).
 ### 4.4 API contract (consumed unchanged)
 
 The app talks to the same `/api/v1` backend via `VITE_API_BASE_URL`'s native
-equivalent (an Expo env/config value — no hardcoded URL, per
-`apps/api/CLAUDE.md` / `apps/web/CLAUDE.md`). All endpoints already exist; this
-PRD adds none. The contract the app consumes:
+equivalent (a native build-config value, e.g. `react-native-config` — no
+hardcoded URL, per `apps/api/CLAUDE.md` / `apps/web/CLAUDE.md`). All endpoints
+already exist; this PRD adds none. The contract the app consumes:
 
 - **Auth** — `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`,
   `GET /auth/me`, `PATCH /auth/me`, `POST /auth/change-password`,
@@ -225,17 +273,98 @@ PRD adds none. The contract the app consumes:
 refresh** on `401` (single in-flight refresh deduped across concurrent 401s,
 replay the original request, logout on refresh failure); hydrate the user via
 `GET /auth/me` on launch when a token exists. **Difference from web:** tokens are
-stored in the iOS **Keychain / Expo SecureStore**, not `localStorage` — the one
-deliberate platform change, because secure storage is the native-correct home for
-credentials (and sets up biometric-unlock later).
+stored in the iOS **Keychain** (`react-native-keychain`), not `localStorage` —
+the one deliberate platform change, because secure storage is the native-correct
+home for credentials (and sets up biometric-unlock later). Because the app is
+offline-first, these endpoints are **not called directly from screens** — the UI
+reads/writes the local store and the **sync layer (§4.5)** is the only thing that
+touches the network.
 
-### 4.5 Native capabilities (v1 scope)
+**Idempotency dependency.** For offline writes to be safe to replay, the
+create/update endpoints must be **idempotent under a client-supplied id /
+idempotency key** (POSTing the same client-generated `id` twice must not create
+two rows). If the current API doesn't already accept client ids / keys, a small
+companion `[api]` PRD adds that — the one backend dependency this PRD introduces
+(§6, Q1).
+
+### 4.5 Offline-first architecture
+
+The defining architectural property of this app. The web reads/writes the API
+live; the iOS app instead treats **an on-device database as the source of
+truth**, with a background sync layer reconciling it against the server.
+
+**Local store (source of truth).** A durable on-device **SQLite** database
+(`op-sqlite` / `react-native-sqlite-storage`) holds the user's full workout domain — routines,
+exercises, sessions, session-exercises, and set entries — mirroring the API's
+entity shapes (`apps/web/src/types`). **Every screen reads from and writes to the
+local DB**, so the UI is instant and fully functional with the radio off. React
+Query sits on top as the in-memory cache/subscription layer; the DB is what
+persists. Logging a set is a **local, synchronous write** that can never fail for
+lack of signal.
+
+**Write path — outbox queue.** Every mutation (create routine, add exercise,
+start/complete session, log/edit/delete a set, edit profile, …) is applied
+**optimistically to the local DB** and appended as a record to a persisted
+**outbox** table: `{ client_id, entity, op, payload, base_version, created_at,
+state }`. A sync worker drains the outbox in order whenever the device is online
+(reacting to `@react-native-community/netinfo` + app-foreground + a periodic
+tick), translating each record into the corresponding `/api/v1` call (§4.4). On
+success the record is marked synced; on a retryable/network error it stays queued
+with backoff; on a hard `4xx` (validation/conflict) it is flagged for the
+conflict policy below. The queue survives app kills (it's in SQLite).
+
+**Id strategy.** Offline creates can't wait for a server id, so the client
+**generates the UUID** (`client_id`) at creation time and uses it as the entity's
+real id everywhere — local rows, child references, and the create request. This
+requires the API to **accept a client-supplied id** (or an idempotency key that
+maps to one) so a replay is a no-op rather than a duplicate — the idempotency
+dependency in §4.4 / §6. No temp-id→server-id remapping is needed if client ids
+are accepted end-to-end.
+
+**Read / pull sync.** On launch, on reconnect, and on pull-to-refresh, the sync
+worker **pulls the server state** for the user and reconciles it into the local
+DB. Because per-user data is small, **v1 does a full per-entity refetch** of the
+existing list/detail endpoints (no new delta API needed) and upserts by id;
+server rows absent locally are inserted, and server-confirmed deletions
+propagate naturally (a row absent from the server pull that has no pending local
+create is removed). A `?since=` delta endpoint + tombstones is a **later
+optimisation**, not a v1 requirement — explicitly kept out so this PRD needs no
+read-side API change.
+
+**Conflict policy — last-write-wins (LWW).** Single-user data plus append-only
+set logs make conflicts rare and low-stakes:
+
+- **Set entries are append-only** — two devices logging sets produce distinct
+  rows (distinct client ids); no conflict, both sync.
+- **Entity edits** (routine name, exercise targets, profile fields) use **LWW by
+  `updated_at`**: when a pull returns a server row newer than the local
+  unsynced edit, the server wins and the local edit is dropped (and surfaced in a
+  sync log); when the local edit is newer, the outbox push wins. This is a
+  deliberate simplification (see non-goals) — no field-level merge / CRDT.
+- **Deletes win over concurrent edits** (tombstone semantics on pull).
+
+**Sync status in the UI.** A lightweight, non-blocking indicator shows
+pending/synced/offline state (e.g. a subtle marker on the resume-session banner
+and a "last synced" line on Profile), so the user trusts that an offline-logged
+workout is safe and will upload. No modal, no spinner gate on the logging path.
+
+**Library choice is an open question (§6).** The above is expressible with (a) a
+hand-rolled SQLite + outbox layer, (b) **WatermelonDB** (SQLite + built-in sync
+protocol), (c) **PowerSync/RxDB** (managed replication), or (d) **React Query
+persistence + a mutation-resumption outbox** over SQLite. Recommendation leans to
+a **thin hand-rolled outbox over `op-sqlite`** (full control, no new backend
+service, matches our simple LWW needs), revisited if it proves heavier than a
+library.
+
+### 4.6 Native capabilities (v1 scope)
 
 In scope for v1 because they're table-stakes-native and low-risk: app icon +
 splash, secure token storage (above), safe-area + status-bar theming, haptic tap
-feedback on primary actions, pull-to-refresh on list/dashboard screens. **Out of
-scope** (future PRDs): push notifications, biometric unlock, offline logging,
-Apple Health integration, widgets.
+feedback on primary actions (naturally available on the SwiftUI surfaces), and
+pull-to-refresh that triggers a sync (§4.5). Offline-first itself is a core goal,
+not a native "extra" — see §4.5. **Out of scope** (future PRDs): push
+notifications, biometric unlock, a `?since=` delta-sync API, Apple Health
+integration, and widgets.
 
 ## 5. Testing
 
@@ -246,22 +375,33 @@ mobile test lanes (the tree currently resolves `api` and `web`; see the
 [testing-setup] memory) alongside the first feature code:
 
 - **Unit** (`tests/unit-test/mobile/`): the ported API client injects the bearer
-  token and performs the **single-flight 401 → refresh → replay** correctly
-  (the highest-risk ported logic); the theme exposes the same token values as
-  web; screen/component logic (e.g. set-logging reducer, "last time to beat"
-  hint, resume-banner visibility) via React Native Testing Library + a mocked
-  API. No network, no real backend.
-- **E2E** (`tests/e2e/mobile/`): drive the built app (Expo/Detox or Maestro
+  token and performs the **single-flight 401 → refresh → replay** correctly; the
+  theme exposes the same token values as web; screen/component logic (e.g.
+  set-logging reducer, "last time to beat" hint, resume-banner visibility) via
+  React Native Testing Library + a mocked API. **Offline/sync is the
+  highest-risk logic and gets the most unit coverage**: an outbox mutation
+  applies optimistically to the local DB and replays to the right endpoint;
+  **replaying the same client-id create twice is idempotent (no duplicate)**; the
+  **LWW resolver** keeps the newer side on pull; append-only set entries from two
+  "devices" both survive; the worker drains in order and backs off on network
+  error. No network, no real backend (SQLite in-memory + mocked API).
+- **Native (SwiftUI) unit** (`ios/` XCTest): any non-trivial logic that lives in
+  a SwiftUI-bridged view (e.g. muscle-diagram geometry, chart scaling) gets an
+  XCTest, run in the app's `test` lane.
+- **E2E** (`tests/e2e/mobile/`): drive the built app (**Detox or Maestro**
   against an iOS simulator) through the protected happy path end-to-end against a
   **self-contained API stack on dedicated ports** (reuse the pattern behind
   `tests/cmd/e2eserver` + embedded Postgres that the web e2e already uses — see
   [test-port-isolation] memory): **register/login → create routine → add
   exercise → start session → log a set → complete → see it in history**, i.e. a
-  create-and-read round-trip, not one half.
+  create-and-read round-trip, not one half. **Plus an offline round-trip**: go
+  offline (airplane mode / disabled radio) → log a full session → confirm it's
+  visible in-app from the local store → go online → assert the sync worker pushes
+  it and the **server** (and a second client / the web) now returns those sets.
 
 Each new test must fail without the change and pass with it. CI additionally runs
-the app's own `lint` / `typecheck` / `build` (EAS build in CI for the app
-binary). The PR lists the tests added and where they live.
+the app's own `lint` / `typecheck` and a **Fastlane/Xcode build** of the app
+binary (macOS runner). The PR lists the tests added and where they live.
 
 > Because this is a brand-new app, the first implementation PR establishes the
 > mobile test harness itself; subsequent feature PRs add their unit + e2e tests
@@ -271,44 +411,65 @@ binary). The PR lists the tests added and where they live.
 
 ## 6. Open questions (resolve during review)
 
-1. **Navigation library** — Expo Router (file-based, closest to the web's
-   route-centric model) vs. React Navigation (imperative). Recommendation: Expo
-   Router.
-2. **Shared code strategy** — do we (a) extract the domain **types** and design
+1. **API idempotency (the one backend dependency).** Do the existing
+   create/update endpoints already accept a **client-supplied id** (or an
+   `Idempotency-Key`) so a replayed offline mutation can't duplicate a row
+   (§4.4, §4.5)? If not, a small companion `[api]` PRD adds it. Recommendation:
+   accept the client UUID as the row id on create (the API already uses UUIDs),
+   making replays naturally idempotent.
+2. **SwiftUI-vs-RN screen split.** Which surfaces are built in SwiftUI vs plain
+   RN? Default: **RN for all parity screens, SwiftUI for the muscle diagrams,
+   progress charts, and the active-session logging surface** (§3, §4.2). Confirm
+   the exact set — each SwiftUI screen adds bridge surface area.
+3. **Sync library.** Thin hand-rolled outbox over `op-sqlite` (recommended) vs. a
+   library (WatermelonDB / PowerSync / RxDB) vs. React Query persistence + an
+   outbox (§4.5). Decide before the sync phase.
+4. **Shared code strategy** — do we (a) extract the domain **types** and design
    **tokens** into a shared workspace package both `web` and `mobile` import, or
    (b) mirror them as independent copies per app (simpler, matches today's
    "each app owns its deps" rule but risks drift)? Recommendation: start with
-   **(b) mirrored** to keep apps independent, and revisit a shared package only
-   if drift becomes real. Either way, keep the muscle/usage hexes and token
-   values single-sourced enough that the diagrams never drift (the PRD 0009/0011
-   constraint).
-3. **Apple developer account / bundle id / signing** — needed for TestFlight +
-   App Store; who owns it and what's the bundle identifier?
+   **(b) mirrored**, and revisit a shared package only if drift becomes real.
+   Either way, keep the muscle/usage hexes and token values single-sourced enough
+   that the diagrams never drift (the PRD 0009/0011 constraint).
+5. **Apple developer account / bundle id / signing** — needed for TestFlight +
+   App Store (and the Fastlane lanes); who owns it and what's the bundle
+   identifier?
 
 ## 7. Rollout
 
 Parity is large, so land it as a **stacked sequence of `[mobile]` PRs**, each
 with its unit + e2e tests, roughly bottom-up:
 
-1. **`[mobile][chore]`** — scaffold Expo app in `apps/mobile`, `README.md` +
-   `CLAUDE.md`, EAS build/submit config, mobile test lanes
+0. **(dependency, if needed)** `[api]` — guarantee **idempotent create/update**
+   under client-supplied ids / keys (§6 Q1). Lands before the sync phase.
+1. **`[mobile][chore]`** — scaffold **bare React Native** app in `apps/mobile`
+   (own `ios/` Xcode project + SwiftUI bridge scaffold), `README.md` +
+   `CLAUDE.md`, **Fastlane** build/submit lanes, mobile test lanes
    (`tests/unit-test/mobile`, `tests/e2e/mobile`) wired to a self-contained API
    stack on dedicated ports.
-2. **`[mobile][feat]`** — design-system/theme port + shared primitives (shell,
-   nav bar, bottom tab bar, sheet, buttons/fields, segmented, avatar).
-3. **`[mobile][feat]`** — API client + auth (secure storage, transparent
-   refresh) + auth screens + protected navigation.
-4. **`[mobile][feat]`** — Workout tab: routines list + routine detail + exercise
+2. **`[mobile][feat]`** — design-system/theme port + shared RN primitives (shell,
+   nav bar, bottom tab bar, sheet, buttons/fields, segmented, avatar) + the
+   **SwiftUI↔RN bridge mechanism** proven with one bridged view.
+3. **`[mobile][feat]`** — API client + auth (Keychain storage, transparent
+   refresh) + auth screens + protected navigation (React Navigation).
+4. **`[mobile][feat]`** — **offline core**: local SQLite schema + repositories +
+   outbox + pull/push **sync worker** + LWW conflict policy + sync-status UI
+   (§4.5). Everything after this reads/writes the local store.
+5. **`[mobile][feat]`** — Workout tab: routines list + routine detail + exercise
    picker.
-5. **`[mobile][feat]`** — Sessions: start/active logging + summary + history tab
-   + resume banner.
-6. **`[mobile][feat]`** — Exercise detail (Info/Progress/History) + muscle
-   diagram.
-7. **`[mobile][feat]`** — Progress dashboard (charts) + muscle-balance/usage.
-8. **`[mobile][feat]`** — Profile + edit profile + change password + avatar
-   upload.
-9. **`[mobile][chore]`** — icon/splash, TestFlight beta, App Store submission.
+6. **`[mobile][feat]`** — Sessions: start/active logging + summary + history tab
+   + resume banner (the core offline-logging path).
+7. **`[mobile][feat]`** — Exercise detail (Info/Progress/History) + muscle
+   diagram (SwiftUI).
+8. **`[mobile][feat]`** — Progress dashboard (charts, SwiftUI) +
+   muscle-balance/usage.
+9. **`[mobile][feat]`** — Profile + edit profile + change password + avatar
+   upload (online-only path).
+10. **`[mobile][chore]`** — icon/splash, Fastlane TestFlight beta, App Store
+    submission.
 
-No backend change, no feature flag — the app is additive and ships to its own
-store track; the web app is untouched. Android becomes a follow-on PRD built on
-the same Expo project.
+The web app is untouched and there's no feature flag — the app is additive and
+ships to its own store track. The **only** possible backend change is the
+idempotency guarantee (step 0), a small companion `[api]` PRD. Android becomes a
+follow-on PRD reusing the RN core (the SwiftUI screens get Compose/RN
+equivalents).
