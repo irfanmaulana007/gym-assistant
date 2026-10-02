@@ -105,53 +105,49 @@ their history on **both** web and iOS because both talk to the same API.
 
 ## 3. Decision — tech stack
 
-**Chosen: a hybrid stack — bare React Native (no Expo) + TypeScript as the app
-framework, with SwiftUI for select native screens/components bridged in as native
-UI modules.** We own the native iOS project (`ios/`, Xcode) directly.
+**Chosen: bare React Native (no Expo) + TypeScript. The entire UI is React
+Native — no SwiftUI / custom native views.** We own the native iOS project
+(`ios/`, Xcode) directly.
 
 Rationale, scored against this specific codebase:
 
-- **Bare RN keeps the React/TS reuse.** The web app is React + TypeScript with
+- **Maximum reuse of what exists.** The web app is React + TypeScript with
   `@tanstack/react-query` and a hand-rolled typed `fetch` client with transparent
-  token refresh (`apps/web/src/api/*`). Bare React Native keeps the same mental
-  model and lets us port the API client, auth/refresh logic, TypeScript domain
-  types (`apps/web/src/types`), and the design tokens (→ a typed theme consumed by
-  RN `StyleSheet`) with minimal change.
-- **SwiftUI where native earns its keep.** For the highest-fidelity /
-  performance-sensitive surfaces we build the screen (or component) in **SwiftUI**
-  and bridge it in as a native view — candidates: the two anatomical **muscle
-  diagrams**, the **progress charts**, and the **active-session logging** surface
-  (the one screen where native responsiveness/haptics matter most). The exact
-  RN-vs-SwiftUI split is an open question (§6) with a default of "RN for parity
-  screens, SwiftUI only for those candidates".
-- **No Expo — deliberate.** Owning the raw native project is precisely what makes
-  dropping into SwiftUI clean (Expo's managed project needs prebuild/dev-client
-  gymnastics for custom native UI). The cost we accept: we hand-build the
-  build/submit pipeline (**Fastlane + TestFlight**, Xcode toolchain, Apple
-  signing) that Expo's EAS would have given for free.
+  token refresh (`apps/web/src/api/*`). React Native keeps the same mental model
+  and lets us port the API client, auth/refresh logic, TypeScript domain types
+  (`apps/web/src/types`), and the design tokens (→ a typed theme consumed by RN
+  `StyleSheet`) with minimal change.
+- **One implementation per screen, one mental model.** Everything is TypeScript/RN
+  — no JS↔Swift bridge to build or keep in sync, and no second UI paradigm for
+  the team to maintain. The design system and native-feel primitives (bottom
+  tabs, sheets, segmented controls) map 1:1 onto RN; the two muscle **diagrams**
+  and the **charts** render with **`react-native-svg`**, reusing the web's
+  geometry/data math and the same token hexes (§4.2) so they stay single-source
+  with web and portable to Android.
 - **Offline-first is well-trodden on bare RN.** A durable on-device SQLite
   database (**`op-sqlite`** / `react-native-sqlite-storage`) plus a thin sync
   layer (or a library — WatermelonDB, PowerSync, RxDB) gives us the local source
   of truth and background sync this PRD requires (§4.5).
-- **Android later is cheaper than native-only.** The RN core and all TS logic
-  port; the few SwiftUI screens get Android-native (Compose) or plain-RN
-  equivalents in a follow-on PRD.
+- **Android later is a port, not a rewrite.** The whole RN UI and all TS logic
+  carry over — there are no iOS-only screens to re-build.
+- **Bare (no Expo).** We own the native project and ship via **Fastlane +
+  TestFlight**. The cost we accept: we hand-build the build/submit pipeline (Xcode
+  toolchain, Apple signing) that Expo's EAS would have given for free.
 
 **Tradeoffs we accept (called out so they're not surprises):**
 
-- **Two UI paradigms + bridge glue.** RN and SwiftUI coexist; a clear, documented
-  boundary (which screens are SwiftUI, and the props/events crossing the bridge)
-  keeps this contained.
 - **More build/release ownership** than Expo (Fastlane, signing, optional OTA via
-  CodePush if we want it) and a required **macOS + Xcode** build environment.
+  CodePush if wanted) and a required **macOS + Xcode** build environment.
+- RN's perf ceiling on heavy custom drawing is below native, but our visuals
+  (SVG diagrams, simple charts) are well within what `react-native-svg` handles.
 
 **Alternatives considered (not chosen):**
 
 | Option | Verdict |
 |--------|---------|
-| **Pure native SwiftUI** (no RN) | Most native, but **zero reuse** of our React/TS client, types, and tokens, and Android later is a **full separate rewrite**. The hybrid keeps SwiftUI for the surfaces that benefit while preserving reuse. |
-| **Expo (managed RN)** | Smoothest tooling (EAS build/submit, modules), but the managed native project makes **custom SwiftUI bridging awkward** (prebuild/dev-client), and we specifically want direct native control. |
-| **Bare RN only** (no SwiftUI) | Maximum reuse and the simplest build, but forgoes SwiftUI for the surfaces where native fidelity shines — the hybrid deliberately opts into SwiftUI there. |
+| **Expo (managed RN)** | With no custom native UI to bridge, Expo would actually cut build/release toil (EAS build/submit, managed modules). We chose bare RN for direct control of the native project and pipeline — a **reasonable thing to revisit** if the Fastlane/signing overhead outweighs that control. |
+| **Hybrid RN + SwiftUI** | Earlier consideration (SwiftUI for diagrams/charts/active-session); dropped — the native-fidelity gain didn't justify a **second implementation + a JS↔Swift bridge** to maintain, and `react-native-svg` covers the visuals while keeping them single-source with web/Android. |
+| **Pure native SwiftUI** (no RN) | Most native, but **zero reuse** of our React/TS client, types, and tokens, and Android later is a **full separate rewrite**. |
 | **Capacitor / WebView wrapper** | Ships the *website* in a shell — violates `.claude/rules/native-mobile-ux.md`, and makes offline-first something to bolt onto a web runtime. Rejected. |
 
 ## 4. Design
@@ -168,22 +164,20 @@ are navigable the same way:
 apps/mobile/
   src/
     features/   auth, routines, exercises, sessions, progress, profile (RN screens)
-    components/ shared native primitives (Button, Field, Sheet, NavBar, BottomNav, Avatar, Segmented, Switch, Collapsible, …)
-    native/     JS side of the SwiftUI bridge (native-component wrappers + typed props/events)
+    components/ shared native primitives (Button, Field, Sheet, NavBar, BottomNav, Avatar, Segmented, Switch, Collapsible, MuscleDiagram, …)
     api/        ported typed client + per-domain modules (auth, routines, sessions, catalog, analytics)
     db/         SQLite schema + local repositories (source of truth, §4.5)
     sync/       outbox queue + pull/push sync worker + conflict policy (§4.5)
     types/      domain types mirroring the API contract
     theme/      design tokens ported from web styles.css
     lib/        auth context, secure token storage (Keychain), query client, netinfo
-  ios/          native Xcode project — SwiftUI views + RN native-module bridges (MuscleDiagram, charts, active-session surface)
+  ios/          native Xcode project (RN-generated; standard native modules only, no custom native UI)
   fastlane/     build / TestFlight / App Store submission lanes
   metro.config.js, package.json, tsconfig.json, …
 ```
 
 Navigation uses **React Navigation** (native stack + bottom-tab navigator) to
-reproduce the web's model exactly. SwiftUI screens are hosted inside RN
-navigators as native-backed views so navigation stays uniform.
+reproduce the web's model exactly.
 
 ### 4.2 Screen parity (what we port)
 
@@ -225,13 +219,11 @@ controls** for in-page view switching; **press (`:active`) states, no hover**.
 
 > The two muscle **SVG diagrams** and the three dependency-free **chart widgets**
 > (`VolumeChart`, `MuscleBalance`, `ActivityCalendar`) are the highest-effort
-> ports (web renders them as SVG/DOM) and are the **primary SwiftUI-bridge
-> candidates** (§3) — rendered as native SwiftUI views for fidelity/performance,
-> or via `react-native-svg` if kept in RN. Either way they reuse the same
-> geometry/data math and the **same token hexes** so the primary/secondary and
-> 4-tier usage colors never drift from `apps/web/src/lib/muscleDiagram.ts` (the
-> constraint called out in PRDs 0009 / 0011); when built in SwiftUI those hexes
-> cross the bridge from the shared theme rather than being re-typed in Swift.
+> ports (web renders them as SVG/DOM). They render via **`react-native-svg`**,
+> reusing the same geometry/data math and the **same token hexes** so the
+> primary/secondary and 4-tier usage colors never drift from
+> `apps/web/src/lib/muscleDiagram.ts` (the constraint called out in PRDs 0009 /
+> 0011).
 
 ### 4.3 Design-system port
 
@@ -360,8 +352,8 @@ library.
 
 In scope for v1 because they're table-stakes-native and low-risk: app icon +
 splash, secure token storage (above), safe-area + status-bar theming, haptic tap
-feedback on primary actions (naturally available on the SwiftUI surfaces), and
-pull-to-refresh that triggers a sync (§4.5). Offline-first itself is a core goal,
+feedback on primary actions (via an RN haptics module), and pull-to-refresh that
+triggers a sync (§4.5). Offline-first itself is a core goal,
 not a native "extra" — see §4.5. **Out of scope** (future PRDs): push
 notifications, biometric unlock, a `?since=` delta-sync API, Apple Health
 integration, and widgets.
@@ -385,9 +377,6 @@ mobile test lanes (the tree currently resolves `api` and `web`; see the
   **LWW resolver** keeps the newer side on pull; append-only set entries from two
   "devices" both survive; the worker drains in order and backs off on network
   error. No network, no real backend (SQLite in-memory + mocked API).
-- **Native (SwiftUI) unit** (`ios/` XCTest): any non-trivial logic that lives in
-  a SwiftUI-bridged view (e.g. muscle-diagram geometry, chart scaling) gets an
-  XCTest, run in the app's `test` lane.
 - **E2E** (`tests/e2e/mobile/`): drive the built app (**Detox or Maestro**
   against an iOS simulator) through the protected happy path end-to-end against a
   **self-contained API stack on dedicated ports** (reuse the pattern behind
@@ -417,21 +406,17 @@ binary (macOS runner). The PR lists the tests added and where they live.
    (§4.4, §4.5)? If not, a small companion `[api]` PRD adds it. Recommendation:
    accept the client UUID as the row id on create (the API already uses UUIDs),
    making replays naturally idempotent.
-2. **SwiftUI-vs-RN screen split.** Which surfaces are built in SwiftUI vs plain
-   RN? Default: **RN for all parity screens, SwiftUI for the muscle diagrams,
-   progress charts, and the active-session logging surface** (§3, §4.2). Confirm
-   the exact set — each SwiftUI screen adds bridge surface area.
-3. **Sync library.** Thin hand-rolled outbox over `op-sqlite` (recommended) vs. a
+2. **Sync library.** Thin hand-rolled outbox over `op-sqlite` (recommended) vs. a
    library (WatermelonDB / PowerSync / RxDB) vs. React Query persistence + an
    outbox (§4.5). Decide before the sync phase.
-4. **Shared code strategy** — do we (a) extract the domain **types** and design
+3. **Shared code strategy** — do we (a) extract the domain **types** and design
    **tokens** into a shared workspace package both `web` and `mobile` import, or
    (b) mirror them as independent copies per app (simpler, matches today's
    "each app owns its deps" rule but risks drift)? Recommendation: start with
    **(b) mirrored**, and revisit a shared package only if drift becomes real.
    Either way, keep the muscle/usage hexes and token values single-sourced enough
    that the diagrams never drift (the PRD 0009/0011 constraint).
-5. **Apple developer account / bundle id / signing** — needed for TestFlight +
+4. **Apple developer account / bundle id / signing** — needed for TestFlight +
    App Store (and the Fastlane lanes); who owns it and what's the bundle
    identifier?
 
@@ -443,13 +428,11 @@ with its unit + e2e tests, roughly bottom-up:
 0. **(dependency, if needed)** `[api]` — guarantee **idempotent create/update**
    under client-supplied ids / keys (§6 Q1). Lands before the sync phase.
 1. **`[mobile][chore]`** — scaffold **bare React Native** app in `apps/mobile`
-   (own `ios/` Xcode project + SwiftUI bridge scaffold), `README.md` +
-   `CLAUDE.md`, **Fastlane** build/submit lanes, mobile test lanes
-   (`tests/unit-test/mobile`, `tests/e2e/mobile`) wired to a self-contained API
-   stack on dedicated ports.
+   (own `ios/` Xcode project), `README.md` + `CLAUDE.md`, **Fastlane**
+   build/submit lanes, mobile test lanes (`tests/unit-test/mobile`,
+   `tests/e2e/mobile`) wired to a self-contained API stack on dedicated ports.
 2. **`[mobile][feat]`** — design-system/theme port + shared RN primitives (shell,
-   nav bar, bottom tab bar, sheet, buttons/fields, segmented, avatar) + the
-   **SwiftUI↔RN bridge mechanism** proven with one bridged view.
+   nav bar, bottom tab bar, sheet, buttons/fields, segmented, avatar).
 3. **`[mobile][feat]`** — API client + auth (Keychain storage, transparent
    refresh) + auth screens + protected navigation (React Navigation).
 4. **`[mobile][feat]`** — **offline core**: local SQLite schema + repositories +
@@ -460,9 +443,8 @@ with its unit + e2e tests, roughly bottom-up:
 6. **`[mobile][feat]`** — Sessions: start/active logging + summary + history tab
    + resume banner (the core offline-logging path).
 7. **`[mobile][feat]`** — Exercise detail (Info/Progress/History) + muscle
-   diagram (SwiftUI).
-8. **`[mobile][feat]`** — Progress dashboard (charts, SwiftUI) +
-   muscle-balance/usage.
+   diagram (`react-native-svg`).
+8. **`[mobile][feat]`** — Progress dashboard (charts) + muscle-balance/usage.
 9. **`[mobile][feat]`** — Profile + edit profile + change password + avatar
    upload (online-only path).
 10. **`[mobile][chore]`** — icon/splash, Fastlane TestFlight beta, App Store
@@ -471,5 +453,5 @@ with its unit + e2e tests, roughly bottom-up:
 The web app is untouched and there's no feature flag — the app is additive and
 ships to its own store track. The **only** possible backend change is the
 idempotency guarantee (step 0), a small companion `[api]` PRD. Android becomes a
-follow-on PRD reusing the RN core (the SwiftUI screens get Compose/RN
-equivalents).
+follow-on PRD: the entire RN UI and TS logic port over, with no iOS-only screens
+to re-build.
