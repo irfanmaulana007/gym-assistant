@@ -1,0 +1,55 @@
+# Fastlane lanes for the bare RN iOS app (PRD 0018 §3 — we own build/submit via
+# Fastlane + TestFlight, the cost accepted for going bare instead of Expo EAS).
+#
+# Signing is expected via `match` (shared certs/profiles) or manual signing; wire
+# MATCH_* / App Store Connect API key env vars in CI before enabling the beta /
+# release lanes. These lanes assume `ios/` has been generated and `pod install`
+# has run (see README).
+
+default_platform(:ios)
+
+WORKSPACE = "ios/GymAssistant.xcworkspace"
+SCHEME = "GymAssistant"
+
+platform :ios do
+  desc "Install JS + CocoaPods dependencies"
+  lane :bootstrap do
+    sh("cd .. && npm install")
+    cocoapods(podfile: "ios/Podfile")
+  end
+
+  desc "Build a debug app for the simulator (used by Detox e2e / CI smoke)"
+  lane :build_sim do
+    build_app(
+      workspace: WORKSPACE,
+      scheme: SCHEME,
+      configuration: "Debug",
+      destination: "generic/platform=iOS Simulator",
+      skip_archive: true,
+      skip_codesigning: true
+    )
+  end
+
+  desc "Run the JS logic tests + RN component tests"
+  lane :test do
+    sh("cd .. && npm test")          # Vitest logic suite
+    sh("cd .. && npm run test:native") # RNTL component suite
+  end
+
+  desc "Build + upload a TestFlight beta"
+  lane :beta do
+    setup_ci if ENV["CI"]
+    match(type: "appstore", readonly: true) if ENV["MATCH_GIT_URL"]
+    increment_build_number(xcodeproj: "ios/GymAssistant.xcodeproj")
+    build_app(workspace: WORKSPACE, scheme: SCHEME, configuration: "Release")
+    upload_to_testflight(skip_waiting_for_build_processing: true)
+  end
+
+  desc "Submit the current build to the App Store"
+  lane :release do
+    setup_ci if ENV["CI"]
+    match(type: "appstore", readonly: true) if ENV["MATCH_GIT_URL"]
+    build_app(workspace: WORKSPACE, scheme: SCHEME, configuration: "Release")
+    upload_to_app_store(submit_for_review: false, automatic_release: false)
+  end
+end
