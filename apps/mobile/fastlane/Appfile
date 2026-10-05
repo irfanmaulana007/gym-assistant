@@ -1,0 +1,7 @@
+# Fill these in once the Apple developer account / bundle id are decided
+# (PRD 0018 §6 Q4 — open question: who owns the account + bundle identifier).
+app_identifier(ENV['IOS_BUNDLE_ID'] || 'com.gymassistant.app')
+apple_id(ENV['FASTLANE_APPLE_ID'] || 'CHANGE_ME@example.com')
+
+# itc_team_id("...")
+# team_id("...")

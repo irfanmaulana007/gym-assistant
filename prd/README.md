@@ -37,7 +37,7 @@ for the full document structure.
 | [0015](0015-cardio-toggle-and-session-history-detail.md) | Cardio Toggle on the Muscle Heatmap & a Distinct Session-History Detail | Approved | web |
 | [0016](0016-shared-last-set-across-routines.md) | Shared "Last Set to Beat" Across Routines | Approved | api |
 | [0017](0017-session-scoped-catalog-exercise.md) | Pick a Catalog Exercise Mid-Session (Session-Scoped) | Approved | api, web |
-| [0018](0018-ios-mobile-app.md) | iOS Mobile App (Parity with the Web UI) | Approved | mobile |
+| [0018](0018-ios-mobile-app.md) | iOS Mobile App (Parity with the Web UI) | Implemented | mobile |
 
 ## Status values
 

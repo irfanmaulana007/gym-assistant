@@ -3,9 +3,9 @@
 | Field | Value |
 |-------|-------|
 | Author | Irfan Maulana |
-| Status | Approved |
+| Status | Implemented |
 | Created | 2026-10-02 |
-| Updated | 2026-10-02 |
+| Updated | 2026-10-05 |
 | App | mobile |
 | Consumes | [0001 Workout Tracking Foundation](0001-workout-tracking-foundation.md) (client-agnostic API) |
 | Mirrors | web features 0003–0017 (screen/behaviour parity) |

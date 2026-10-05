@@ -1,0 +1,33 @@
+# React Native / iOS build artifacts
+node_modules/
+.env.local
+
+# iOS (native project is generated; see README — Pods & build output are ignored)
+ios/Pods/
+ios/build/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+ios/DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Metro / Hermes
+.metro-health-check*
+metro.log
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+fastlane/.env*
+
+# Detox
+e2e/artifacts/
+coverage/
+
+# Misc
+*.log
+.DS_Store
