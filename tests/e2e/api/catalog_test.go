@@ -106,6 +106,62 @@ func TestExerciseCatalog_List_E2E(t *testing.T) {
 	}
 }
 
+// TestExerciseCatalog_ForearmsAndRunning_E2E verifies the forearm/grip and
+// running movements added in migration 0007 are seeded, served with their
+// mapped primary muscle group, and reachable via the muscle_group filter.
+func TestExerciseCatalog_ForearmsAndRunning_E2E(t *testing.T) {
+	h := newHarnessWithDB(t)
+	token := h.registerUser(t, "forearms@example.com", "supersecret1", "Fore")
+
+	wantPrimary := map[string]string{
+		// Forearms / grip
+		"Reverse Wrist Curl": "forearms",
+		"Zottman Curl":       "forearms",
+		"Plate Pinch Hold":   "forearms",
+		"Dead Hang":          "forearms",
+		// Running / cardio
+		"Outdoor Run":      "cardio",
+		"Interval Sprints": "cardio",
+		"Hill Sprints":     "cardio",
+		"High Knees":       "cardio",
+	}
+	for name, primary := range wantPrimary {
+		e := h.findCatalog(t, token, name)
+		if e.PrimaryMuscleGroup != primary {
+			t.Errorf("catalog %q primary = %q, want %q", name, e.PrimaryMuscleGroup, primary)
+		}
+	}
+
+	// The forearms filter now returns the new grip movements (the initial seed
+	// had only Wrist Curl / Farmer's Carry).
+	forearms := h.listCatalog(t, token, "muscle_group=forearms")
+	for _, e := range forearms {
+		if e.PrimaryMuscleGroup != "forearms" {
+			t.Errorf("muscle_group=forearms returned %q with primary %q", e.Name, e.PrimaryMuscleGroup)
+		}
+	}
+	for _, want := range []string{"Reverse Wrist Curl", "Zottman Curl", "Dead Hang"} {
+		if !hasCatalogName(forearms, want) {
+			t.Errorf("muscle_group=forearms missing %q", want)
+		}
+	}
+
+	// A distance-based run carries the catalog's distance measurement default.
+	run := h.findCatalog(t, token, "Outdoor Run")
+	if run.DefaultMeasurementType != "distance" {
+		t.Errorf("Outdoor Run measurement = %q, want distance", run.DefaultMeasurementType)
+	}
+}
+
+func hasCatalogName(entries []catalogEntry, name string) bool {
+	for _, e := range entries {
+		if e.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // exerciseView is the decoded read shape of a routine exercise.
 type exerciseView struct {
 	ID                    string   `json:"id"`
