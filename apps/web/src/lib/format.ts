@@ -15,9 +15,19 @@ export function formatDuration(totalSeconds: number): string {
 }
 
 /** Human-readable target for an exercise, e.g. "4×8" or "30:00". */
-export function formatTarget(measurementType: string, sets?: number | null, reps?: number | null, durationSeconds?: number | null): string {
+export function formatTarget(
+  measurementType: string,
+  sets?: number | null,
+  reps?: number | null,
+  durationSeconds?: number | null,
+  distance?: number | null,
+  distanceUnit?: string | null,
+): string {
   if (measurementType === 'duration' && durationSeconds != null) {
     return formatDuration(durationSeconds)
+  }
+  if (measurementType === 'distance' && distance != null) {
+    return `${distance}${distanceUnit ?? ''}`
   }
   if (sets != null && reps != null) return `${sets}×${reps}`
   if (reps != null) return `${reps} reps`

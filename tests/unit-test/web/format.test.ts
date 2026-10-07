@@ -35,6 +35,12 @@ describe('formatTarget', () => {
   it('shows a duration for timed work', () => {
     expect(formatTarget('duration', null, null, 1800)).toBe('30:00')
   })
+  it('shows distance with its unit for distance work', () => {
+    expect(formatTarget('distance', null, null, null, 10, 'mi')).toBe('10mi')
+  })
+  it('falls back to a dash for a distance target with no distance set', () => {
+    expect(formatTarget('distance', null, null, null, null, 'km')).toBe('—')
+  })
   it('falls back to a dash when nothing applies', () => {
     expect(formatTarget('weight_reps', null, null, null)).toBe('—')
   })

@@ -1,6 +1,6 @@
 import type { ExerciseInput } from '@/api/routines'
 import { Field } from '@/components/ui'
-import { MUSCLE_GROUP_SECTIONS, muscleGroupLabel, type Exercise, type MeasurementType } from '@/types/api'
+import { MUSCLE_GROUP_SECTIONS, muscleGroupLabel, type DistanceUnit, type Exercise, type MeasurementType } from '@/types/api'
 
 export const MEASUREMENT_LABELS: Record<MeasurementType, string> = {
   weight_reps: 'Weight × reps',
@@ -8,6 +8,11 @@ export const MEASUREMENT_LABELS: Record<MeasurementType, string> = {
   duration: 'Duration',
   distance: 'Distance',
 }
+
+// Distance units offered in the exercise forms, with the default used when a
+// distance exercise has no unit yet.
+export const DISTANCE_UNITS: DistanceUnit[] = ['km', 'mi', 'm']
+export const DEFAULT_DISTANCE_UNIT: DistanceUnit = 'km'
 
 export const EMPTY_EXERCISE_FORM: ExerciseInput = {
   name: '',
@@ -28,20 +33,26 @@ export function exerciseToInput(ex: Exercise): ExerciseInput {
     target_reps: ex.target_reps,
     target_weight: ex.target_weight,
     target_duration_seconds: ex.target_duration_seconds,
+    target_distance: ex.target_distance,
+    distance_unit: ex.distance_unit,
     notes: ex.notes,
   }
 }
 
-// Normalize the form before create/update: duration exercises carry only a
-// duration, everything else carries sets × reps.
+// Normalize the form before create/update: each measurement type carries only
+// its own target fields — duration a duration, distance a distance + unit,
+// everything else sets × reps.
 export function normalizeExerciseInput(form: ExerciseInput): ExerciseInput {
   const isDuration = form.measurement_type === 'duration'
+  const isDistance = form.measurement_type === 'distance'
   return {
     ...form,
     name: (form.name ?? '').trim(),
-    target_sets: isDuration ? null : form.target_sets,
-    target_reps: isDuration ? null : form.target_reps,
+    target_sets: isDuration || isDistance ? null : form.target_sets,
+    target_reps: isDuration || isDistance ? null : form.target_reps,
     target_duration_seconds: isDuration ? form.target_duration_seconds ?? 1800 : null,
+    target_distance: isDistance ? form.target_distance ?? 1 : null,
+    distance_unit: isDistance ? form.distance_unit ?? DEFAULT_DISTANCE_UNIT : null,
   }
 }
 
@@ -53,13 +64,21 @@ export function normalizeTargets(input: {
   target_sets?: number | null
   target_reps?: number | null
   target_duration_seconds?: number | null
-}): Pick<ExerciseInput, 'measurement_type' | 'target_sets' | 'target_reps' | 'target_duration_seconds'> {
+  target_distance?: number | null
+  distance_unit?: DistanceUnit | null
+}): Pick<
+  ExerciseInput,
+  'measurement_type' | 'target_sets' | 'target_reps' | 'target_duration_seconds' | 'target_distance' | 'distance_unit'
+> {
   const isDuration = input.measurement_type === 'duration'
+  const isDistance = input.measurement_type === 'distance'
   return {
     measurement_type: input.measurement_type,
-    target_sets: isDuration ? null : input.target_sets ?? null,
-    target_reps: isDuration ? null : input.target_reps ?? null,
+    target_sets: isDuration || isDistance ? null : input.target_sets ?? null,
+    target_reps: isDuration || isDistance ? null : input.target_reps ?? null,
     target_duration_seconds: isDuration ? input.target_duration_seconds ?? 1800 : null,
+    target_distance: isDistance ? input.target_distance ?? 1 : null,
+    distance_unit: isDistance ? input.distance_unit ?? DEFAULT_DISTANCE_UNIT : null,
   }
 }
 
@@ -77,6 +96,7 @@ export function ExerciseFormFields({
   hideMuscleGroup?: boolean
 }) {
   const isDuration = value.measurement_type === 'duration'
+  const isDistance = value.measurement_type === 'distance'
   const patch = (p: Partial<ExerciseInput>) => onChange({ ...value, ...p })
 
   return (
@@ -110,6 +130,31 @@ export function ExerciseFormFields({
           value={value.target_duration_seconds ? Math.round(value.target_duration_seconds / 60) : 30}
           onChange={(e) => patch({ target_duration_seconds: Number(e.target.value) * 60 })}
         />
+      ) : isDistance ? (
+        <div className="row">
+          <Field
+            label="Target distance"
+            name="ex-distance"
+            type="number"
+            min={0}
+            step="any"
+            value={value.target_distance ?? 0}
+            onChange={(e) => patch({ target_distance: Number(e.target.value) })}
+          />
+          <div className="field">
+            <label htmlFor="ex-distance-unit">Unit</label>
+            <select
+              id="ex-distance-unit"
+              className="select"
+              value={value.distance_unit ?? DEFAULT_DISTANCE_UNIT}
+              onChange={(e) => patch({ distance_unit: e.target.value as DistanceUnit })}
+            >
+              {DISTANCE_UNITS.map((u) => (
+                <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       ) : (
         <div className="row">
           <Field

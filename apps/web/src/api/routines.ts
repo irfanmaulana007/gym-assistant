@@ -1,5 +1,5 @@
 import { request } from './client'
-import type { Exercise, ExerciseHistory, MeasurementType, MuscleGroup, Routine } from '@/types/api'
+import type { DistanceUnit, Exercise, ExerciseHistory, MeasurementType, MuscleGroup, Routine } from '@/types/api'
 
 export interface ExerciseInput {
   name?: string
@@ -8,6 +8,8 @@ export interface ExerciseInput {
   target_reps?: number | null
   target_weight?: number | null
   target_duration_seconds?: number | null
+  target_distance?: number | null
+  distance_unit?: DistanceUnit | null
   primary_muscle_group?: MuscleGroup
   secondary_muscle_groups?: MuscleGroup[]
   notes?: string
