@@ -111,3 +111,41 @@ func TestSeedEntriesValidVocab(t *testing.T) {
 		})
 	}
 }
+
+// TestSeedEntriesValidVocab0007 guards the forearm/grip and running rows added
+// in migration 0007 — same controlled-vocab rule the API enforces on any entry.
+func TestSeedEntriesValidVocab0007(t *testing.T) {
+	entries := []struct {
+		name        string
+		primary     string
+		secondary   []string
+		measurement string
+	}{
+		// Forearms / grip
+		{"Reverse Wrist Curl", "forearms", nil, "weight_reps"},
+		{"Behind-the-Back Wrist Curl", "forearms", nil, "weight_reps"},
+		{"Cable Wrist Curl", "forearms", nil, "weight_reps"},
+		{"Wrist Roller", "forearms", nil, "weight_reps"},
+		{"Reverse Barbell Curl", "forearms", []string{"biceps"}, "weight_reps"},
+		{"Zottman Curl", "forearms", []string{"biceps"}, "weight_reps"},
+		{"Plate Pinch Hold", "forearms", nil, "duration"},
+		{"Dead Hang", "forearms", []string{"back"}, "duration"},
+		// Running / cardio
+		{"Outdoor Run", "cardio", []string{"quads", "hamstrings", "glutes", "calves"}, "distance"},
+		{"Jogging", "cardio", []string{"quads", "hamstrings", "glutes", "calves"}, "distance"},
+		{"Trail Run", "cardio", []string{"quads", "hamstrings", "glutes", "calves"}, "distance"},
+		{"Tempo Run", "cardio", []string{"quads", "hamstrings", "glutes", "calves"}, "distance"},
+		{"Interval Sprints", "cardio", []string{"quads", "hamstrings", "glutes", "calves"}, "distance"},
+		{"Hill Sprints", "cardio", []string{"quads", "glutes", "calves"}, "distance"},
+		{"Treadmill Sprint", "cardio", []string{"quads", "hamstrings", "glutes", "calves"}, "distance"},
+		{"High Knees", "cardio", []string{"quads", "core", "calves"}, "duration"},
+	}
+	for _, e := range entries {
+		t.Run(e.name, func(t *testing.T) {
+			details := catalog.ValidateEntry(e.primary, e.secondary, e.measurement)
+			if len(details) != 0 {
+				t.Errorf("%q has invalid vocab: %v", e.name, details)
+			}
+		})
+	}
+}
