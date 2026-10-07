@@ -11,10 +11,13 @@ import {
   MUSCLE_GROUPS,
   muscleGroupLabel,
   type CatalogExercise,
+  type DistanceUnit,
   type MeasurementType,
   type MuscleGroup,
 } from '@/types/api'
 import {
+  DEFAULT_DISTANCE_UNIT,
+  DISTANCE_UNITS,
   EMPTY_EXERCISE_FORM,
   ExerciseFormFields,
   MEASUREMENT_LABELS,
@@ -29,6 +32,8 @@ interface TargetsForm {
   target_sets: number
   target_reps: number
   target_minutes: number
+  target_distance: number
+  distance_unit: DistanceUnit
 }
 
 const DEFAULT_TARGETS: TargetsForm = {
@@ -36,6 +41,8 @@ const DEFAULT_TARGETS: TargetsForm = {
   target_sets: 3,
   target_reps: 12,
   target_minutes: 30,
+  target_distance: 5,
+  distance_unit: DEFAULT_DISTANCE_UNIT,
 }
 
 // Map the catalog-targets form into the session ad-hoc payload (PRD 0017): the
@@ -138,6 +145,8 @@ export function ExercisePickerSheet({
         target_sets: targets.target_sets,
         target_reps: targets.target_reps,
         target_duration_seconds: targets.target_minutes * 60,
+        target_distance: targets.target_distance,
+        distance_unit: targets.distance_unit,
       }),
     }
     // A routine add lets the server default the name from the catalog (its
@@ -158,6 +167,11 @@ export function ExercisePickerSheet({
 
   const title = step === 'list' ? 'Add exercise' : step === 'custom' ? 'Custom exercise' : (selected?.name ?? 'Exercise')
   const isDuration = targets.measurement_type === 'duration'
+  // Distance targets persist only for routine adds today; the session ad-hoc
+  // path has no distance-target columns yet (tracked by a follow-up PRD), so a
+  // distance session add keeps the sets/reps inputs rather than silently
+  // dropping a distance value the API can't store.
+  const isDistance = targets.measurement_type === 'distance' && target.kind === 'routine'
 
   return (
     <Sheet open={open} onClose={onClose} title={title}>
@@ -257,6 +271,31 @@ export function ExercisePickerSheet({
               value={targets.target_minutes}
               onChange={(e) => setTargets((t) => ({ ...t, target_minutes: Number(e.target.value) }))}
             />
+          ) : isDistance ? (
+            <div className="row">
+              <Field
+                label="Target distance"
+                name="targets-distance"
+                type="number"
+                min={0}
+                step="any"
+                value={targets.target_distance}
+                onChange={(e) => setTargets((t) => ({ ...t, target_distance: Number(e.target.value) }))}
+              />
+              <div className="field">
+                <label htmlFor="targets-distance-unit">Unit</label>
+                <select
+                  id="targets-distance-unit"
+                  className="select"
+                  value={targets.distance_unit}
+                  onChange={(e) => setTargets((t) => ({ ...t, distance_unit: e.target.value as DistanceUnit }))}
+                >
+                  {DISTANCE_UNITS.map((u) => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           ) : (
             <div className="row">
               <Field
