@@ -4,8 +4,6 @@
 export type MeasurementType = 'weight_reps' | 'reps_only' | 'duration' | 'distance'
 export type WeightUnit = 'kg' | 'lb'
 export type DistanceUnit = 'km' | 'mi' | 'm'
-// The distance units offered when setting a target / logging a run.
-export const DISTANCE_UNITS: DistanceUnit[] = ['km', 'mi', 'm']
 export type SessionStatus = 'active' | 'paused' | 'completed' | 'abandoned'
 export type SessionExerciseStatus = 'pending' | 'in_progress' | 'completed' | 'skipped'
 export type SessionEventType = 'start' | 'pause' | 'resume' | 'complete' | 'abandon'

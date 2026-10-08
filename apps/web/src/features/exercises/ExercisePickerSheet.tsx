@@ -8,7 +8,6 @@ import { Button, ErrorText, Field, Spinner } from '@/components/ui'
 import { ChevronRight } from '@/components/icons'
 import { useExerciseCatalog } from '@/hooks/useExerciseCatalog'
 import {
-  DISTANCE_UNITS,
   MUSCLE_GROUPS,
   muscleGroupLabel,
   type CatalogExercise,
@@ -17,6 +16,8 @@ import {
   type MuscleGroup,
 } from '@/types/api'
 import {
+  DEFAULT_DISTANCE_UNIT,
+  DISTANCE_UNITS,
   EMPTY_EXERCISE_FORM,
   ExerciseFormFields,
   MEASUREMENT_LABELS,
@@ -41,7 +42,7 @@ const DEFAULT_TARGETS: TargetsForm = {
   target_reps: 12,
   target_minutes: 30,
   target_distance: 5,
-  distance_unit: 'km',
+  distance_unit: DEFAULT_DISTANCE_UNIT,
 }
 
 // Map the catalog-targets form into the session ad-hoc payload (PRD 0017): the
@@ -168,6 +169,10 @@ export function ExercisePickerSheet({
 
   const title = step === 'list' ? 'Add exercise' : step === 'custom' ? 'Custom exercise' : (selected?.name ?? 'Exercise')
   const isDuration = targets.measurement_type === 'duration'
+  // Distance targets now persist on both routine and session ad-hoc exercises
+  // (PRD 0020 added session_exercises.target_distance / distance_unit and the
+  // ad-hoc API fields), so a distance pick shows the distance + unit input in
+  // both modes.
   const isDistance = targets.measurement_type === 'distance'
 
   return (
@@ -275,7 +280,7 @@ export function ExercisePickerSheet({
                 name="targets-distance"
                 type="number"
                 min={0}
-                step="0.01"
+                step="any"
                 value={targets.target_distance}
                 onChange={(e) => setTargets((t) => ({ ...t, target_distance: Number(e.target.value) }))}
               />

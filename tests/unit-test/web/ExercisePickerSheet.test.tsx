@@ -36,6 +36,15 @@ const CATALOG = [
     created_at: '',
     updated_at: '',
   },
+  {
+    id: 'c-run',
+    name: 'Outdoor Run',
+    primary_muscle_group: 'quads',
+    secondary_muscle_groups: [],
+    default_measurement_type: 'distance',
+    created_at: '',
+    updated_at: '',
+  },
 ]
 
 // mockFetch handles the catalog list + exercise create, capturing POST bodies.
@@ -170,5 +179,64 @@ describe('ExercisePickerSheet', () => {
     expect(body).not.toHaveProperty('primary_muscle_group')
     expect(body).not.toHaveProperty('secondary_muscle_groups')
     expect(onAdded).toHaveBeenCalled()
+  })
+
+  // A distance catalog exercise added to a routine shows a distance + unit input
+  // (not sets/reps) and posts target_distance/distance_unit, nulling sets/reps.
+  it('routine mode shows a distance + unit field for a distance exercise and posts them', async () => {
+    const posts = mockFetch()
+    renderSheet({ kind: 'routine', routineId: 'r1' })
+    await userEvent.click(await screen.findByRole('button', { name: /add outdoor run/i }))
+
+    const distance = (await screen.findByLabelText('Target distance')) as HTMLInputElement
+    const unit = screen.getByLabelText('Unit') as HTMLSelectElement
+    expect(screen.queryByLabelText('Sets')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Reps')).not.toBeInTheDocument()
+
+    await userEvent.clear(distance)
+    await userEvent.type(distance, '10')
+    await userEvent.selectOptions(unit, 'mi')
+
+    await userEvent.click(screen.getByRole('button', { name: /^add outdoor run$/i }))
+
+    await waitFor(() => expect(posts.length).toBe(1))
+    const { body } = posts[0]
+    expect(body.catalog_exercise_id).toBe('c-run')
+    expect(body.measurement_type).toBe('distance')
+    expect(body.target_distance).toBe(10)
+    expect(body.distance_unit).toBe('mi')
+    expect(body.target_sets).toBeNull()
+    expect(body.target_reps).toBeNull()
+  })
+
+  // PRD 0020 added the session ad-hoc distance-target columns + API fields, so a
+  // distance pick in session mode now shows the distance + unit input (not
+  // sets/reps) and posts target_distance/distance_unit to the session endpoint.
+  it('session mode shows a distance field for a distance exercise and posts the distance target', async () => {
+    const posts = mockFetch()
+    renderSheet({ kind: 'session', sessionId: 's1' })
+    await userEvent.click(await screen.findByRole('button', { name: /add outdoor run/i }))
+
+    const distance = (await screen.findByLabelText('Target distance')) as HTMLInputElement
+    const unit = screen.getByLabelText('Unit') as HTMLSelectElement
+    expect(screen.queryByLabelText('Sets')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Reps')).not.toBeInTheDocument()
+
+    await userEvent.clear(distance)
+    await userEvent.type(distance, '5')
+    await userEvent.selectOptions(unit, 'km')
+
+    await userEvent.click(screen.getByRole('button', { name: /^add outdoor run$/i }))
+
+    await waitFor(() => expect(posts.length).toBe(1))
+    const { url, body } = posts[0]
+    expect(url).toContain('/api/v1/sessions/s1/exercises')
+    expect(body.catalog_exercise_id).toBe('c-run')
+    expect(body.name).toBe('Outdoor Run')
+    expect(body.measurement_type).toBe('distance')
+    expect(body.target_distance).toBe(5)
+    expect(body.distance_unit).toBe('km')
+    expect(body.target_sets).toBeNull()
+    expect(body.target_reps).toBeNull()
   })
 })

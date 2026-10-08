@@ -1,4 +1,4 @@
-# PRD 0019 — Cardio Session Logging (distance target + distance/duration/pace/HR inputs)
+# PRD 0020 — Cardio Session Logging (distance target + distance/duration/pace/HR inputs)
 
 | Field | Value |
 |-------|-------|
@@ -7,7 +7,14 @@
 | Created | 2026-10-08 |
 | Updated | 2026-10-08 |
 | App | api / web |
+| Supersedes | [0019 Distance Targets for Session Ad-Hoc Exercises](0019-session-distance-targets.md) |
 | Related PRDs | [0002](0002-session-lifecycle-and-metrics.md), [0006](0006-exercise-catalog.md), [0015](0015-cardio-toggle-and-session-history-detail.md), [0017](0017-session-scoped-catalog-exercise.md) |
+
+> **Supersedes [PRD 0019](0019-session-distance-targets.md).** PRD 0019 planned
+> distance targets for session ad-hoc exercises and shipped the routine-side form,
+> deferring the `session_exercises` distance columns to a follow-up. This PRD
+> delivers that follow-up and extends it to full in-session cardio logging
+> (distance, duration, derived pace, average/max heart rate, incline).
 
 ## 1. Problem
 
