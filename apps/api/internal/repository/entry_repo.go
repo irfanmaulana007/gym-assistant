@@ -21,6 +21,8 @@ type SetEntryInput struct {
 	DistanceUnit    *string
 	Incline         *float64
 	Speed           *float64
+	AvgHeartRate    *int
+	MaxHeartRate    *int
 	RPE             *float64
 	IsCompleted     *bool
 	Metadata        domain.JSONMap
@@ -28,7 +30,8 @@ type SetEntryInput struct {
 
 const entrySelect = `
 	id, session_exercise_id, entry_number, weight, weight_unit, reps,
-	duration_seconds, distance, distance_unit, incline, speed, rpe,
+	duration_seconds, distance, distance_unit, incline, speed,
+	avg_heart_rate, max_heart_rate, rpe,
 	is_completed, performed_at, metadata, created_at`
 
 func scanEntry(row pgx.Row) (*domain.SetEntry, error) {
@@ -36,7 +39,8 @@ func scanEntry(row pgx.Row) (*domain.SetEntry, error) {
 	var meta []byte
 	err := row.Scan(
 		&e.ID, &e.SessionExerciseID, &e.EntryNumber, &e.Weight, &e.WeightUnit, &e.Reps,
-		&e.DurationSeconds, &e.Distance, &e.DistanceUnit, &e.Incline, &e.Speed, &e.RPE,
+		&e.DurationSeconds, &e.Distance, &e.DistanceUnit, &e.Incline, &e.Speed,
+		&e.AvgHeartRate, &e.MaxHeartRate, &e.RPE,
 		&e.IsCompleted, &e.PerformedAt, &meta, &e.CreatedAt,
 	)
 	if err != nil {
@@ -56,13 +60,14 @@ func (r *SessionRepository) CreateEntry(ctx context.Context, userID, sessionExer
 	const q = `
 		INSERT INTO set_entries (
 			session_exercise_id, entry_number, weight, weight_unit, reps,
-			duration_seconds, distance, distance_unit, incline, speed, rpe,
+			duration_seconds, distance, distance_unit, incline, speed,
+			avg_heart_rate, max_heart_rate, rpe,
 			is_completed, metadata)
 		SELECT
 			sx.id,
 			COALESCE((SELECT MAX(entry_number) + 1 FROM set_entries WHERE session_exercise_id = sx.id), 1),
-			$3, $4::weight_unit, $5, $6, $7, $8::distance_unit, $9, $10, $11,
-			COALESCE($12, true), COALESCE($13::jsonb, '{}'::jsonb)
+			$3, $4::weight_unit, $5, $6, $7, $8::distance_unit, $9, $10, $11, $12, $13,
+			COALESCE($14, true), COALESCE($15::jsonb, '{}'::jsonb)
 		FROM session_exercises sx
 		JOIN workout_sessions s ON s.id = sx.session_id
 		WHERE sx.id = $1 AND s.user_id = $2
@@ -70,7 +75,8 @@ func (r *SessionRepository) CreateEntry(ctx context.Context, userID, sessionExer
 	entry, err := scanEntry(r.pool.QueryRow(ctx, q,
 		sessionExerciseID, userID,
 		in.Weight, in.WeightUnit, in.Reps,
-		in.DurationSeconds, in.Distance, in.DistanceUnit, in.Incline, in.Speed, in.RPE,
+		in.DurationSeconds, in.Distance, in.DistanceUnit, in.Incline, in.Speed,
+		in.AvgHeartRate, in.MaxHeartRate, in.RPE,
 		in.IsCompleted, metaPtr(in.Metadata)))
 	if err != nil {
 		return nil, err
@@ -90,20 +96,24 @@ func (r *SessionRepository) UpdateEntry(ctx context.Context, userID, id string, 
 			distance_unit = COALESCE($8::distance_unit, e.distance_unit),
 			incline = COALESCE($9, e.incline),
 			speed = COALESCE($10, e.speed),
-			rpe = COALESCE($11, e.rpe),
-			is_completed = COALESCE($12, e.is_completed),
-			metadata = COALESCE($13::jsonb, e.metadata)
+			avg_heart_rate = COALESCE($11, e.avg_heart_rate),
+			max_heart_rate = COALESCE($12, e.max_heart_rate),
+			rpe = COALESCE($13, e.rpe),
+			is_completed = COALESCE($14, e.is_completed),
+			metadata = COALESCE($15::jsonb, e.metadata)
 		FROM session_exercises sx
 		JOIN workout_sessions s ON s.id = sx.session_id
 		WHERE e.id = $1 AND sx.id = e.session_exercise_id AND s.user_id = $2
 		RETURNING
 			e.id, e.session_exercise_id, e.entry_number, e.weight, e.weight_unit, e.reps,
-			e.duration_seconds, e.distance, e.distance_unit, e.incline, e.speed, e.rpe,
+			e.duration_seconds, e.distance, e.distance_unit, e.incline, e.speed,
+			e.avg_heart_rate, e.max_heart_rate, e.rpe,
 			e.is_completed, e.performed_at, e.metadata, e.created_at`
 	return scanEntry(r.pool.QueryRow(ctx, q,
 		id, userID,
 		in.Weight, in.WeightUnit, in.Reps,
-		in.DurationSeconds, in.Distance, in.DistanceUnit, in.Incline, in.Speed, in.RPE,
+		in.DurationSeconds, in.Distance, in.DistanceUnit, in.Incline, in.Speed,
+		in.AvgHeartRate, in.MaxHeartRate, in.RPE,
 		in.IsCompleted, metaPtr(in.Metadata)))
 }
 
@@ -129,7 +139,8 @@ func (r *SessionRepository) ListEntriesForSession(ctx context.Context, sessionID
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			e.id, e.session_exercise_id, e.entry_number, e.weight, e.weight_unit, e.reps,
-			e.duration_seconds, e.distance, e.distance_unit, e.incline, e.speed, e.rpe,
+			e.duration_seconds, e.distance, e.distance_unit, e.incline, e.speed,
+			e.avg_heart_rate, e.max_heart_rate, e.rpe,
 			e.is_completed, e.performed_at, e.metadata, e.created_at
 		FROM set_entries e
 		JOIN session_exercises sx ON sx.id = e.session_exercise_id

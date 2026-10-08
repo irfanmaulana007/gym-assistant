@@ -11,7 +11,7 @@ import (
 
 const sessionExerciseSelect = `
 	id, session_id, exercise_id, catalog_exercise_id, position, name_snapshot, measurement_type,
-	target_sets, target_reps, target_weight, target_duration_seconds,
+	target_sets, target_reps, target_weight, target_duration_seconds, target_distance, distance_unit,
 	primary_muscle_group, COALESCE(secondary_muscle_groups, '{}')::text[],
 	status, completed_at, sets_completed, total_reps, total_volume,
 	total_duration_seconds, top_set_weight, metadata, created_at, updated_at`
@@ -21,7 +21,7 @@ func scanSessionExercise(row pgx.Row) (*domain.SessionExercise, error) {
 	var meta []byte
 	err := row.Scan(
 		&sx.ID, &sx.SessionID, &sx.ExerciseID, &sx.CatalogExerciseID, &sx.Position, &sx.NameSnapshot, &sx.MeasurementType,
-		&sx.TargetSets, &sx.TargetReps, &sx.TargetWeight, &sx.TargetDurationSeconds,
+		&sx.TargetSets, &sx.TargetReps, &sx.TargetWeight, &sx.TargetDurationSeconds, &sx.TargetDistance, &sx.DistanceUnit,
 		&sx.PrimaryMuscleGroup, &sx.SecondaryMuscleGroups,
 		&sx.Status, &sx.CompletedAt, &sx.SetsCompleted, &sx.TotalReps, &sx.TotalVolume,
 		&sx.TotalDurationSeconds, &sx.TopSetWeight, &meta, &sx.CreatedAt, &sx.UpdatedAt,
@@ -234,7 +234,7 @@ func (r *SessionRepository) GetSessionExercise(ctx context.Context, userID, id s
 	var sessionStatus string
 	err := r.pool.QueryRow(ctx, q, id, userID).Scan(
 		&sx.ID, &sx.SessionID, &sx.ExerciseID, &sx.CatalogExerciseID, &sx.Position, &sx.NameSnapshot, &sx.MeasurementType,
-		&sx.TargetSets, &sx.TargetReps, &sx.TargetWeight, &sx.TargetDurationSeconds,
+		&sx.TargetSets, &sx.TargetReps, &sx.TargetWeight, &sx.TargetDurationSeconds, &sx.TargetDistance, &sx.DistanceUnit,
 		&sx.PrimaryMuscleGroup, &sx.SecondaryMuscleGroups,
 		&sx.Status, &sx.CompletedAt, &sx.SetsCompleted, &sx.TotalReps, &sx.TotalVolume,
 		&sx.TotalDurationSeconds, &sx.TopSetWeight, &meta, &sx.CreatedAt, &sx.UpdatedAt,
@@ -276,7 +276,7 @@ func (r *SessionRepository) UpdateSessionExercise(ctx context.Context, userID, i
 // in UPDATE ... FROM ... RETURNING (where a bare column would be ambiguous).
 const sessionExerciseReturning = `
 	sx.id, sx.session_id, sx.exercise_id, sx.catalog_exercise_id, sx.position, sx.name_snapshot, sx.measurement_type,
-	sx.target_sets, sx.target_reps, sx.target_weight, sx.target_duration_seconds,
+	sx.target_sets, sx.target_reps, sx.target_weight, sx.target_duration_seconds, sx.target_distance, sx.distance_unit,
 	sx.primary_muscle_group, COALESCE(sx.secondary_muscle_groups, '{}')::text[],
 	sx.status, sx.completed_at, sx.sets_completed, sx.total_reps, sx.total_volume,
 	sx.total_duration_seconds, sx.top_set_weight, sx.metadata, sx.created_at, sx.updated_at`
@@ -286,19 +286,19 @@ func (r *SessionRepository) AddAdHocExercise(ctx context.Context, sessionID stri
 	const q = `
 		INSERT INTO session_exercises (
 			session_id, exercise_id, catalog_exercise_id, position, name_snapshot, measurement_type,
-			target_sets, target_reps, target_weight, target_duration_seconds,
+			target_sets, target_reps, target_weight, target_duration_seconds, target_distance, distance_unit,
 			primary_muscle_group, secondary_muscle_groups, status)
 		VALUES (
 			$1, NULL, $10,
 			COALESCE((SELECT MAX(position) + 1 FROM session_exercises WHERE session_id = $1), 0),
-			$2, $3::measurement_type, $4, $5, $6, $7,
+			$2, $3::measurement_type, $4, $5, $6, $7, $11, $12::distance_unit,
 			$8::muscle_group, $9::muscle_group[], 'pending')
 		RETURNING ` + sessionExerciseSelect
 	return scanSessionExercise(r.pool.QueryRow(ctx, q,
 		sessionID, in.Name, deref(in.MeasurementType, "weight_reps"),
 		in.TargetSets, in.TargetReps, in.TargetWeight, in.TargetDurationSeconds,
 		deref(in.PrimaryMuscleGroup, "other"), enumArrayLiteral(in.SecondaryMuscleGroups),
-		in.CatalogExerciseID))
+		in.CatalogExerciseID, in.TargetDistance, in.DistanceUnit))
 }
 
 // DeleteSessionExercise removes a checklist item owned by the user.
@@ -326,6 +326,8 @@ type AdHocExerciseInput struct {
 	TargetReps            *int
 	TargetWeight          *float64
 	TargetDurationSeconds *int
+	TargetDistance        *float64
+	DistanceUnit          *string
 	PrimaryMuscleGroup    *string
 	SecondaryMuscleGroups []string
 	CatalogExerciseID     *string

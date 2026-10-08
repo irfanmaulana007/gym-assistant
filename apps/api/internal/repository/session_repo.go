@@ -103,7 +103,7 @@ func (r *SessionRepository) Start(ctx context.Context, userID, routineID string)
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO session_exercises (
 			session_id, exercise_id, position, name_snapshot, measurement_type,
-			target_sets, target_reps, target_weight, target_duration_seconds,
+			target_sets, target_reps, target_weight, target_duration_seconds, target_distance, distance_unit,
 			primary_muscle_group, secondary_muscle_groups, status)
 		SELECT
 			$1, e.id,
@@ -111,7 +111,7 @@ func (r *SessionRepository) Start(ctx context.Context, userID, routineID string)
 				ORDER BY COALESCE(ec.primary_muscle_group, e.primary_muscle_group)::text, e.name
 			) - 1)::int,
 			e.name, e.measurement_type,
-			e.target_sets, e.target_reps, e.target_weight, e.target_duration_seconds,
+			e.target_sets, e.target_reps, e.target_weight, e.target_duration_seconds, e.target_distance, e.distance_unit,
 			COALESCE(ec.primary_muscle_group, e.primary_muscle_group),
 			COALESCE(ec.secondary_muscle_groups, e.secondary_muscle_groups),
 			'pending'

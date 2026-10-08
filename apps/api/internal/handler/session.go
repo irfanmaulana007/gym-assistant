@@ -134,6 +134,8 @@ type adHocExerciseRequest struct {
 	TargetReps            *int     `json:"target_reps"`
 	TargetWeight          *float64 `json:"target_weight"`
 	TargetDurationSeconds *int     `json:"target_duration_seconds"`
+	TargetDistance        *float64 `json:"target_distance"`
+	DistanceUnit          *string  `json:"distance_unit"`
 	PrimaryMuscleGroup    *string  `json:"primary_muscle_group"`
 	SecondaryMuscleGroups []string `json:"secondary_muscle_groups"`
 	CatalogExerciseID     *string  `json:"catalog_exercise_id"`
@@ -154,6 +156,8 @@ func (h *SessionHandler) AddExercise(w http.ResponseWriter, r *http.Request) {
 		TargetReps:            req.TargetReps,
 		TargetWeight:          req.TargetWeight,
 		TargetDurationSeconds: req.TargetDurationSeconds,
+		TargetDistance:        req.TargetDistance,
+		DistanceUnit:          req.DistanceUnit,
 		PrimaryMuscleGroup:    req.PrimaryMuscleGroup,
 		SecondaryMuscleGroups: req.SecondaryMuscleGroups,
 		CatalogExerciseID:     req.CatalogExerciseID,
@@ -185,6 +189,8 @@ type entryRequest struct {
 	DistanceUnit    *string        `json:"distance_unit"`
 	Incline         *float64       `json:"incline"`
 	Speed           *float64       `json:"speed"`
+	AvgHeartRate    *int           `json:"avg_heart_rate"`
+	MaxHeartRate    *int           `json:"max_heart_rate"`
 	RPE             *float64       `json:"rpe"`
 	IsCompleted     *bool          `json:"is_completed"`
 	Metadata        domain.JSONMap `json:"metadata"`
@@ -200,6 +206,8 @@ func (req entryRequest) toInput() repository.SetEntryInput {
 		DistanceUnit:    req.DistanceUnit,
 		Incline:         req.Incline,
 		Speed:           req.Speed,
+		AvgHeartRate:    req.AvgHeartRate,
+		MaxHeartRate:    req.MaxHeartRate,
 		RPE:             req.RPE,
 		IsCompleted:     req.IsCompleted,
 		Metadata:        req.Metadata,

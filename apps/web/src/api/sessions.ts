@@ -1,5 +1,6 @@
 import { request } from './client'
 import type {
+  DistanceUnit,
   MeasurementType,
   MuscleGroup,
   SessionExercise,
@@ -15,6 +16,8 @@ export interface AdHocExerciseInput {
   target_sets?: number | null
   target_reps?: number | null
   target_duration_seconds?: number | null
+  target_distance?: number | null
+  distance_unit?: DistanceUnit | null
   primary_muscle_group?: MuscleGroup
   // When set, the API links the ad-hoc exercise to a catalog entry (PRD 0017)
   // and resolves its name/muscle groups/measurement type from the catalog.
@@ -26,6 +29,11 @@ export interface EntryInput {
   weight_unit?: WeightUnit | null
   reps?: number | null
   duration_seconds?: number | null
+  distance?: number | null
+  distance_unit?: DistanceUnit | null
+  incline?: number | null
+  avg_heart_rate?: number | null
+  max_heart_rate?: number | null
   is_completed?: boolean
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describeTarget, formatDuration, formatTarget, formatDate, formatLastSet } from '@/lib/format'
+import { describeTarget, formatDuration, formatDistance, formatPace, formatTarget, formatDate, formatLastSet } from '@/lib/format'
 import type { Exercise } from '@/types/api'
 
 // Minimal Exercise builder — describeTarget only reads the target/measurement fields.
@@ -35,8 +35,40 @@ describe('formatTarget', () => {
   it('shows a duration for timed work', () => {
     expect(formatTarget('duration', null, null, 1800)).toBe('30:00')
   })
+  it('shows distance with its unit for a run', () => {
+    expect(formatTarget('distance', null, null, null, 5, 'km')).toBe('5km')
+  })
+  it('shows a dash for a distance target that is not set', () => {
+    expect(formatTarget('distance', null, null, null, null, 'km')).toBe('—')
+  })
   it('falls back to a dash when nothing applies', () => {
     expect(formatTarget('weight_reps', null, null, null)).toBe('—')
+  })
+})
+
+describe('formatPace', () => {
+  it('derives pace as M:SS per unit from distance and time', () => {
+    // 5 km in 27:30 (1650s) → 5:30 /km
+    expect(formatPace(5, 'km', 1650)).toBe('5:30 /km')
+  })
+  it('pads the seconds', () => {
+    expect(formatPace(2, 'mi', 1000)).toBe('8:20 /mi')
+  })
+  it('returns null until both distance and time are present and positive', () => {
+    expect(formatPace(null, 'km', 1650)).toBeNull()
+    expect(formatPace(5, 'km', null)).toBeNull()
+    expect(formatPace(0, 'km', 1650)).toBeNull()
+    expect(formatPace(5, 'km', 0)).toBeNull()
+  })
+})
+
+describe('formatDistance', () => {
+  it('formats a logged distance with its unit', () => {
+    expect(formatDistance(5, 'km')).toBe('5km')
+    expect(formatDistance(3.1, 'mi')).toBe('3.1mi')
+  })
+  it('returns null when there is no distance', () => {
+    expect(formatDistance(null, 'km')).toBeNull()
   })
 })
 

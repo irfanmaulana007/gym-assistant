@@ -357,6 +357,12 @@ func validateAdHoc(in repository.AdHocExerciseInput) map[string]any {
 	if in.MeasurementType != nil && !vocab.IsMeasurementType(*in.MeasurementType) {
 		details["measurement_type"] = "unknown measurement type"
 	}
+	if in.DistanceUnit != nil && !vocab.IsDistanceUnit(*in.DistanceUnit) {
+		details["distance_unit"] = "unknown distance unit"
+	}
+	if in.TargetDistance != nil && *in.TargetDistance < 0 {
+		details["target_distance"] = "target distance cannot be negative"
+	}
 	if in.PrimaryMuscleGroup != nil && !vocab.IsMuscleGroup(*in.PrimaryMuscleGroup) {
 		details["primary_muscle_group"] = "unknown muscle group"
 	}
@@ -385,6 +391,18 @@ func validateEntry(in repository.SetEntryInput) map[string]any {
 	}
 	if in.DurationSeconds != nil && *in.DurationSeconds < 0 {
 		details["duration_seconds"] = "duration cannot be negative"
+	}
+	if in.Distance != nil && *in.Distance < 0 {
+		details["distance"] = "distance cannot be negative"
+	}
+	if in.Incline != nil && *in.Incline < 0 {
+		details["incline"] = "incline cannot be negative"
+	}
+	if in.AvgHeartRate != nil && *in.AvgHeartRate < 0 {
+		details["avg_heart_rate"] = "heart rate cannot be negative"
+	}
+	if in.MaxHeartRate != nil && *in.MaxHeartRate < 0 {
+		details["max_heart_rate"] = "heart rate cannot be negative"
 	}
 	return details
 }
