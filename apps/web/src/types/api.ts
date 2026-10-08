@@ -187,6 +187,8 @@ export interface SetEntry {
   distance_unit: DistanceUnit | null
   incline: number | null
   speed: number | null
+  avg_heart_rate: number | null
+  max_heart_rate: number | null
   rpe: number | null
   is_completed: boolean
   performed_at: string
@@ -205,6 +207,8 @@ export interface SessionExercise {
   target_reps: number | null
   target_weight: number | null
   target_duration_seconds: number | null
+  target_distance: number | null
+  distance_unit: DistanceUnit | null
   primary_muscle_group: MuscleGroup
   secondary_muscle_groups: MuscleGroup[]
   status: SessionExerciseStatus

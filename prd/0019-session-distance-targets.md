@@ -3,11 +3,20 @@
 | Field | Value |
 |-------|-------|
 | Author | Irfan Maulana |
-| Status | Draft |
+| Status | Superseded |
 | Created | 2026-10-07 |
-| Updated | 2026-10-07 |
+| Updated | 2026-10-08 |
 | App | api, web |
 | Extends | [0002 Session Lifecycle](0002-session-lifecycle-and-metrics.md), [0017 Session-Scoped Catalog Exercise](0017-session-scoped-catalog-exercise.md) |
+| Superseded by | [0020 Cardio Session Logging](0020-cardio-session-logging.md) |
+
+> **Superseded by [PRD 0020](0020-cardio-session-logging.md).** This PRD shipped
+> the routine-side distance-target form and flagged the session ad-hoc columns as
+> a follow-up. PRD 0020 implements that follow-up (the
+> `session_exercises.target_distance` / `distance_unit` columns and the ad-hoc
+> API fields) and extends it to full in-session cardio logging (distance,
+> duration, derived pace, average/max heart rate, incline). Read 0020 for the
+> delivered design.
 
 ## 1. Problem
 

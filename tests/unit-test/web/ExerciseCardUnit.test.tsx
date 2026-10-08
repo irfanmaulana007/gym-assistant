@@ -20,6 +20,8 @@ const SX: SessionExercise = {
   target_reps: 8,
   target_weight: null,
   target_duration_seconds: null,
+  target_distance: null,
+  distance_unit: null,
   primary_muscle_group: 'chest',
   secondary_muscle_groups: [],
   status: 'pending',
@@ -129,6 +131,8 @@ const ENTRY: SetEntry = {
   distance_unit: null,
   incline: null,
   speed: null,
+  avg_heart_rate: null,
+  max_heart_rate: null,
   rpe: null,
   is_completed: true,
   performed_at: '2026-09-15T10:00:00Z',
@@ -222,5 +226,104 @@ describe('ExerciseCard edit/delete a logged set (PRD 0012)', () => {
     await waitFor(() => expect(calls.some((c) => c.method === 'DELETE')).toBe(true))
     const del = calls.find((c) => c.method === 'DELETE')!
     expect(del.url).toMatch(/\/api\/v1\/entries\/en1$/)
+  })
+})
+
+// PRD 0019: a distance (running) exercise must show its target, offer distance /
+// duration / HR inputs instead of kg × reps, derive pace live, and log the cardio
+// payload — not a weight set.
+const DIST_SX: SessionExercise = {
+  ...SX,
+  id: 'sx-run',
+  name_snapshot: 'Jog',
+  measurement_type: 'distance',
+  target_sets: null,
+  target_reps: null,
+  target_distance: 5,
+  distance_unit: 'km',
+  primary_muscle_group: 'cardio',
+}
+
+function renderDistanceCard() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>
+        <AuthProvider>
+          <ExerciseCard sessionId="s1" sx={DIST_SX} disabled={false} />
+        </AuthProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
+describe('ExerciseCard distance/cardio logging (PRD 0019)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    localStorage.clear()
+  })
+
+  it('shows the distance target and cardio inputs — not kg × reps', async () => {
+    localStorage.setItem('gym.token', 'jwt-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({ id: '1', email: 'a@b.com', display_name: 'A', preferred_weight_unit: 'kg' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    )
+
+    renderDistanceCard()
+
+    expect(await screen.findByLabelText('Jog distance')).toBeInTheDocument()
+    expect(screen.getByLabelText('Jog minutes')).toBeInTheDocument()
+    expect(screen.getByLabelText('Jog average heart rate')).toBeInTheDocument()
+    // The weight/reps inputs and kg/lb toggle must NOT be present for a run.
+    expect(screen.queryByLabelText('Jog weight')).toBeNull()
+    expect(screen.queryByLabelText('Jog reps')).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'kg' })).toBeNull()
+    // The target renders as "5km", not a dash.
+    expect(screen.getByText(/5km/)).toBeInTheDocument()
+  })
+
+  it('derives pace from distance + duration and logs the cardio payload', async () => {
+    localStorage.setItem('gym.token', 'jwt-token')
+    const bodies: unknown[] = []
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (url.includes('/entries') && init?.method === 'POST') {
+        bodies.push(JSON.parse(init.body as string))
+        return new Response(JSON.stringify({ id: 'entry1' }), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      return new Response(
+        JSON.stringify({ id: '1', email: 'a@b.com', display_name: 'A', preferred_weight_unit: 'kg' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderDistanceCard()
+    const user = userEvent.setup()
+
+    await user.type(await screen.findByLabelText('Jog distance'), '5')
+    await user.type(screen.getByLabelText('Jog minutes'), '27.5')
+    // 5 km in 27.5 min (1650s) → 5:30 /km, shown live.
+    expect(await screen.findByText('Pace 5:30 /km')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Jog average heart rate'), '150')
+    await user.click(screen.getByRole('button', { name: 'Log' }))
+
+    await waitFor(() => expect(bodies.length).toBe(1))
+    expect(bodies[0]).toMatchObject({
+      distance: 5,
+      distance_unit: 'km',
+      duration_seconds: 1650,
+      avg_heart_rate: 150,
+    })
   })
 })

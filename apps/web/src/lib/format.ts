@@ -14,7 +14,7 @@ export function formatDuration(totalSeconds: number): string {
   return hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`
 }
 
-/** Human-readable target for an exercise, e.g. "4×8" or "30:00". */
+/** Human-readable target for an exercise, e.g. "4×8", "30:00", or "5km". */
 export function formatTarget(
   measurementType: string,
   sets?: number | null,
@@ -26,12 +26,29 @@ export function formatTarget(
   if (measurementType === 'duration' && durationSeconds != null) {
     return formatDuration(durationSeconds)
   }
-  if (measurementType === 'distance' && distance != null) {
-    return `${distance}${distanceUnit ?? ''}`
+  if (measurementType === 'distance') {
+    return distance != null ? `${distance}${distanceUnit ?? ''}` : '—'
   }
   if (sets != null && reps != null) return `${sets}×${reps}`
   if (reps != null) return `${reps} reps`
   return '—'
+}
+
+/** Running pace as "M:SS /unit" (e.g. "5:30 /km"), derived from a distance and
+ * its elapsed time. Returns null when either input is missing or non-positive,
+ * so callers can show nothing until both are entered. */
+export function formatPace(distance?: number | null, distanceUnit?: string | null, durationSeconds?: number | null): string | null {
+  if (distance == null || distance <= 0 || durationSeconds == null || durationSeconds <= 0) return null
+  const secondsPerUnit = Math.round(durationSeconds / distance)
+  const mm = Math.floor(secondsPerUnit / 60)
+  const ss = String(secondsPerUnit % 60).padStart(2, '0')
+  return `${mm}:${ss} /${distanceUnit ?? 'km'}`
+}
+
+/** A logged distance bout as "5km", using the entry's own unit. */
+export function formatDistance(distance?: number | null, distanceUnit?: string | null): string | null {
+  if (distance == null) return null
+  return `${distance}${distanceUnit ?? ''}`
 }
 
 /** Full target for the exercise detail view, e.g. "3×12 @ 40kg" / "30:00" / "5km". */

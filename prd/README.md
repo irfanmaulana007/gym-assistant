@@ -38,7 +38,8 @@ for the full document structure.
 | [0016](0016-shared-last-set-across-routines.md) | Shared "Last Set to Beat" Across Routines | Approved | api |
 | [0017](0017-session-scoped-catalog-exercise.md) | Pick a Catalog Exercise Mid-Session (Session-Scoped) | Approved | api, web |
 | [0018](0018-ios-mobile-app.md) | iOS Mobile App (Parity with the Web UI) | Approved | mobile |
-| [0019](0019-session-distance-targets.md) | Distance Targets for Session Ad-Hoc Exercises | Draft | api, web |
+| [0019](0019-session-distance-targets.md) | Distance Targets for Session Ad-Hoc Exercises | Superseded | api, web |
+| [0020](0020-cardio-session-logging.md) | Cardio Session Logging (distance target + distance/duration/pace/HR inputs) | Approved | api, web |
 
 ## Status values
 

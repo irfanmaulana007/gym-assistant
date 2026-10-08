@@ -52,6 +52,8 @@ type SessionExercise struct {
 	TargetReps            *int       `json:"target_reps"`
 	TargetWeight          *float64   `json:"target_weight"`
 	TargetDurationSeconds *int       `json:"target_duration_seconds"`
+	TargetDistance        *float64   `json:"target_distance"`
+	DistanceUnit          *string    `json:"distance_unit"`
 	PrimaryMuscleGroup    string     `json:"primary_muscle_group"`
 	SecondaryMuscleGroups []string   `json:"secondary_muscle_groups"`
 	Status                string     `json:"status"`
@@ -88,6 +90,8 @@ type SetEntry struct {
 	DistanceUnit      *string   `json:"distance_unit"`
 	Incline           *float64  `json:"incline"`
 	Speed             *float64  `json:"speed"`
+	AvgHeartRate      *int      `json:"avg_heart_rate"`
+	MaxHeartRate      *int      `json:"max_heart_rate"`
 	RPE               *float64  `json:"rpe"`
 	IsCompleted       bool      `json:"is_completed"`
 	PerformedAt       time.Time `json:"performed_at"`

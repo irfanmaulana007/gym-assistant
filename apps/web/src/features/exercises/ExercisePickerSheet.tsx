@@ -56,6 +56,8 @@ function toAdHocInput(input: ExerciseInput): AdHocExerciseInput {
     target_sets: input.target_sets,
     target_reps: input.target_reps,
     target_duration_seconds: input.target_duration_seconds,
+    target_distance: input.target_distance,
+    distance_unit: input.distance_unit,
   }
 }
 
@@ -167,11 +169,11 @@ export function ExercisePickerSheet({
 
   const title = step === 'list' ? 'Add exercise' : step === 'custom' ? 'Custom exercise' : (selected?.name ?? 'Exercise')
   const isDuration = targets.measurement_type === 'duration'
-  // Distance targets persist only for routine adds today; the session ad-hoc
-  // path has no distance-target columns yet (tracked by a follow-up PRD), so a
-  // distance session add keeps the sets/reps inputs rather than silently
-  // dropping a distance value the API can't store.
-  const isDistance = targets.measurement_type === 'distance' && target.kind === 'routine'
+  // Distance targets now persist on both routine and session ad-hoc exercises
+  // (PRD 0020 added session_exercises.target_distance / distance_unit and the
+  // ad-hoc API fields), so a distance pick shows the distance + unit input in
+  // both modes.
+  const isDistance = targets.measurement_type === 'distance'
 
   return (
     <Sheet open={open} onClose={onClose} title={title}>
