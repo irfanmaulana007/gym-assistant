@@ -153,6 +153,64 @@ func TestExerciseCatalog_ForearmsAndRunning_E2E(t *testing.T) {
 	}
 }
 
+// TestExerciseCatalog_ChestAndTriceps_E2E verifies the chest-machine and
+// triceps movements added in migration 0009 are seeded, served with their
+// mapped primary muscle group, and reachable via the muscle_group filter.
+func TestExerciseCatalog_ChestAndTriceps_E2E(t *testing.T) {
+	h := newHarnessWithDB(t)
+	token := h.registerUser(t, "chesttri@example.com", "supersecret1", "Chs")
+
+	wantPrimary := map[string]string{
+		// Chest
+		"Machine Chest Press":         "chest",
+		"Hammer Strength Chest Press": "chest",
+		"Pec Deck":                    "chest",
+		"Seated Machine Fly":          "chest",
+		"Decline Barbell Bench Press": "chest",
+		// Triceps
+		"Single-Arm Triceps Pushdown":   "triceps",
+		"Rope Triceps Pushdown":         "triceps",
+		"Reverse-Grip Triceps Pushdown": "triceps",
+		"Dumbbell Triceps Kickback":     "triceps",
+		"Bench Dip":                     "triceps",
+	}
+	for name, primary := range wantPrimary {
+		e := h.findCatalog(t, token, name)
+		if e.PrimaryMuscleGroup != primary {
+			t.Errorf("catalog %q primary = %q, want %q", name, e.PrimaryMuscleGroup, primary)
+		}
+		if e.DefaultMeasurementType != "weight_reps" {
+			t.Errorf("catalog %q measurement = %q, want weight_reps", name, e.DefaultMeasurementType)
+		}
+	}
+
+	// The chest filter now returns the new machine press / pec-deck movements.
+	chest := h.listCatalog(t, token, "muscle_group=chest")
+	for _, e := range chest {
+		if e.PrimaryMuscleGroup != "chest" {
+			t.Errorf("muscle_group=chest returned %q with primary %q", e.Name, e.PrimaryMuscleGroup)
+		}
+	}
+	for _, want := range []string{"Machine Chest Press", "Pec Deck", "Seated Machine Fly"} {
+		if !hasCatalogName(chest, want) {
+			t.Errorf("muscle_group=chest missing %q", want)
+		}
+	}
+
+	// The triceps filter now returns the new pushdown variants.
+	triceps := h.listCatalog(t, token, "muscle_group=triceps")
+	for _, e := range triceps {
+		if e.PrimaryMuscleGroup != "triceps" {
+			t.Errorf("muscle_group=triceps returned %q with primary %q", e.Name, e.PrimaryMuscleGroup)
+		}
+	}
+	for _, want := range []string{"Single-Arm Triceps Pushdown", "Rope Triceps Pushdown", "Bench Dip"} {
+		if !hasCatalogName(triceps, want) {
+			t.Errorf("muscle_group=triceps missing %q", want)
+		}
+	}
+}
+
 func hasCatalogName(entries []catalogEntry, name string) bool {
 	for _, e := range entries {
 		if e.Name == name {
