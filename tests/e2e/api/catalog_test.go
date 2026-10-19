@@ -153,16 +153,73 @@ func TestExerciseCatalog_ForearmsAndRunning_E2E(t *testing.T) {
 	}
 }
 
-// TestExerciseCatalog_LegsAndChest_E2E verifies the leg and chest/triceps
-// movements added in migration 0009 are seeded, served with their mapped
-// primary muscle group (there is no "legs" group — leg work maps to
-// quads/hamstrings/glutes/calves), and reachable via the muscle_group filter.
-func TestExerciseCatalog_LegsAndChest_E2E(t *testing.T) {
+// TestExerciseCatalog_ChestAndTriceps_E2E verifies the chest-machine and
+// triceps movements added in migration 0009 are seeded, served with their
+// mapped primary muscle group, and reachable via the muscle_group filter.
+func TestExerciseCatalog_ChestAndTriceps_E2E(t *testing.T) {
 	h := newHarnessWithDB(t)
-	token := h.registerUser(t, "legschest@example.com", "supersecret1", "Leg")
+	token := h.registerUser(t, "chesttri@example.com", "supersecret1", "Chs")
 
 	wantPrimary := map[string]string{
-		// Legs
+		// Chest
+		"Machine Chest Press":         "chest",
+		"Hammer Strength Chest Press": "chest",
+		"Pec Deck":                    "chest",
+		"Seated Machine Fly":          "chest",
+		"Decline Barbell Bench Press": "chest",
+		// Triceps
+		"Single-Arm Triceps Pushdown":   "triceps",
+		"Rope Triceps Pushdown":         "triceps",
+		"Reverse-Grip Triceps Pushdown": "triceps",
+		"Dumbbell Triceps Kickback":     "triceps",
+		"Bench Dip":                     "triceps",
+	}
+	for name, primary := range wantPrimary {
+		e := h.findCatalog(t, token, name)
+		if e.PrimaryMuscleGroup != primary {
+			t.Errorf("catalog %q primary = %q, want %q", name, e.PrimaryMuscleGroup, primary)
+		}
+		if e.DefaultMeasurementType != "weight_reps" {
+			t.Errorf("catalog %q measurement = %q, want weight_reps", name, e.DefaultMeasurementType)
+		}
+	}
+
+	// The chest filter now returns the new machine press / pec-deck movements.
+	chest := h.listCatalog(t, token, "muscle_group=chest")
+	for _, e := range chest {
+		if e.PrimaryMuscleGroup != "chest" {
+			t.Errorf("muscle_group=chest returned %q with primary %q", e.Name, e.PrimaryMuscleGroup)
+		}
+	}
+	for _, want := range []string{"Machine Chest Press", "Pec Deck", "Seated Machine Fly"} {
+		if !hasCatalogName(chest, want) {
+			t.Errorf("muscle_group=chest missing %q", want)
+		}
+	}
+
+	// The triceps filter now returns the new pushdown variants.
+	triceps := h.listCatalog(t, token, "muscle_group=triceps")
+	for _, e := range triceps {
+		if e.PrimaryMuscleGroup != "triceps" {
+			t.Errorf("muscle_group=triceps returned %q with primary %q", e.Name, e.PrimaryMuscleGroup)
+		}
+	}
+	for _, want := range []string{"Single-Arm Triceps Pushdown", "Rope Triceps Pushdown", "Bench Dip"} {
+		if !hasCatalogName(triceps, want) {
+			t.Errorf("muscle_group=triceps missing %q", want)
+		}
+	}
+}
+
+// TestExerciseCatalog_Legs_E2E verifies the leg movements added in migration
+// 0010 are seeded, served with their mapped primary muscle group (there is no
+// "legs" group — leg work maps to quads/hamstrings/glutes/calves), and
+// reachable via the muscle_group filter.
+func TestExerciseCatalog_Legs_E2E(t *testing.T) {
+	h := newHarnessWithDB(t)
+	token := h.registerUser(t, "legs@example.com", "supersecret1", "Leg")
+
+	wantPrimary := map[string]string{
 		"Single-Leg Romanian Deadlift": "hamstrings",
 		"Tibialis Raise":               "calves",
 		"Reverse Lunge":                "quads",
@@ -170,10 +227,6 @@ func TestExerciseCatalog_LegsAndChest_E2E(t *testing.T) {
 		"Isometric Single-Leg Hold":    "quads",
 		"Goblet Squat":                 "quads",
 		"Hip Flexor Raise":             "core",
-		// Chest / triceps
-		"Chest Press":                 "chest",
-		"Pec Deck":                    "chest",
-		"Single-Arm Triceps Pushdown": "triceps",
 	}
 	for name, primary := range wantPrimary {
 		e := h.findCatalog(t, token, name)
@@ -182,16 +235,16 @@ func TestExerciseCatalog_LegsAndChest_E2E(t *testing.T) {
 		}
 	}
 
-	// The chest filter now returns the new machine movements.
-	chest := h.listCatalog(t, token, "muscle_group=chest")
-	for _, e := range chest {
-		if e.PrimaryMuscleGroup != "chest" {
-			t.Errorf("muscle_group=chest returned %q with primary %q", e.Name, e.PrimaryMuscleGroup)
+	// The quads filter now returns the new quad-dominant movements.
+	quads := h.listCatalog(t, token, "muscle_group=quads")
+	for _, e := range quads {
+		if e.PrimaryMuscleGroup != "quads" {
+			t.Errorf("muscle_group=quads returned %q with primary %q", e.Name, e.PrimaryMuscleGroup)
 		}
 	}
-	for _, want := range []string{"Chest Press", "Pec Deck"} {
-		if !hasCatalogName(chest, want) {
-			t.Errorf("muscle_group=chest missing %q", want)
+	for _, want := range []string{"Reverse Lunge", "Cossack Squat", "Goblet Squat"} {
+		if !hasCatalogName(quads, want) {
+			t.Errorf("muscle_group=quads missing %q", want)
 		}
 	}
 

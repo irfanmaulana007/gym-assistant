@@ -112,16 +112,15 @@ func TestSeedEntriesValidVocab(t *testing.T) {
 	}
 }
 
-// TestSeedEntriesValidVocab0009 guards the leg and chest/triceps rows added in
-// migration 0009 — same controlled-vocab rule the API enforces on any entry.
-func TestSeedEntriesValidVocab0009(t *testing.T) {
+// TestSeedEntriesValidVocab0010 guards the leg rows added in migration 0010 —
+// same controlled-vocab rule the API enforces on any entry.
+func TestSeedEntriesValidVocab0010(t *testing.T) {
 	entries := []struct {
 		name        string
 		primary     string
 		secondary   []string
 		measurement string
 	}{
-		// Legs
 		{"Single-Leg Romanian Deadlift", "hamstrings", []string{"glutes", "core"}, "weight_reps"},
 		{"Tibialis Raise", "calves", nil, "weight_reps"},
 		{"Reverse Lunge", "quads", []string{"glutes", "hamstrings"}, "weight_reps"},
@@ -129,10 +128,6 @@ func TestSeedEntriesValidVocab0009(t *testing.T) {
 		{"Isometric Single-Leg Hold", "quads", []string{"glutes", "core"}, "duration"},
 		{"Goblet Squat", "quads", []string{"glutes", "core"}, "weight_reps"},
 		{"Hip Flexor Raise", "core", []string{"quads"}, "weight_reps"},
-		// Chest / triceps
-		{"Chest Press", "chest", []string{"triceps", "shoulders"}, "weight_reps"},
-		{"Pec Deck", "chest", []string{"shoulders"}, "weight_reps"},
-		{"Single-Arm Triceps Pushdown", "triceps", nil, "weight_reps"},
 	}
 	for _, e := range entries {
 		t.Run(e.name, func(t *testing.T) {
@@ -171,6 +166,44 @@ func TestSeedEntriesValidVocab0007(t *testing.T) {
 		{"Hill Sprints", "cardio", []string{"quads", "glutes", "calves"}, "distance"},
 		{"Treadmill Sprint", "cardio", []string{"quads", "hamstrings", "glutes", "calves"}, "distance"},
 		{"High Knees", "cardio", []string{"quads", "core", "calves"}, "duration"},
+	}
+	for _, e := range entries {
+		t.Run(e.name, func(t *testing.T) {
+			details := catalog.ValidateEntry(e.primary, e.secondary, e.measurement)
+			if len(details) != 0 {
+				t.Errorf("%q has invalid vocab: %v", e.name, details)
+			}
+		})
+	}
+}
+
+// TestSeedEntriesValidVocab0009 guards the chest-machine and triceps rows added
+// in migration 0009 — same controlled-vocab rule the API enforces on any entry.
+func TestSeedEntriesValidVocab0009(t *testing.T) {
+	entries := []struct {
+		name        string
+		primary     string
+		secondary   []string
+		measurement string
+	}{
+		// Chest — machine / cable presses
+		{"Machine Chest Press", "chest", []string{"triceps", "shoulders"}, "weight_reps"},
+		{"Hammer Strength Chest Press", "chest", []string{"triceps", "shoulders"}, "weight_reps"},
+		{"Smith Machine Bench Press", "chest", []string{"triceps", "shoulders"}, "weight_reps"},
+		{"Decline Barbell Bench Press", "chest", []string{"triceps", "shoulders"}, "weight_reps"},
+		{"Decline Dumbbell Press", "chest", []string{"triceps", "shoulders"}, "weight_reps"},
+		{"Landmine Press", "chest", []string{"shoulders", "triceps"}, "weight_reps"},
+		// Chest — pec-deck / fly machines & cable flys
+		{"Pec Deck", "chest", []string{"shoulders"}, "weight_reps"},
+		{"Seated Machine Fly", "chest", []string{"shoulders"}, "weight_reps"},
+		{"Incline Cable Fly", "chest", []string{"shoulders"}, "weight_reps"},
+		{"Low Cable Fly", "chest", []string{"shoulders"}, "weight_reps"},
+		// Triceps — pushdown & isolation variants
+		{"Single-Arm Triceps Pushdown", "triceps", nil, "weight_reps"},
+		{"Rope Triceps Pushdown", "triceps", nil, "weight_reps"},
+		{"Reverse-Grip Triceps Pushdown", "triceps", nil, "weight_reps"},
+		{"Dumbbell Triceps Kickback", "triceps", nil, "weight_reps"},
+		{"Bench Dip", "triceps", []string{"chest", "shoulders"}, "weight_reps"},
 	}
 	for _, e := range entries {
 		t.Run(e.name, func(t *testing.T) {
