@@ -7,7 +7,7 @@
 // stays meaningful within one session.
 
 import type { MuscleUsageStat } from './muscleDiagram'
-import type { SessionExercise, WorkoutSession } from '@/types/api'
+import { MUSCLE_GROUPS, type MuscleGroup, type SessionExercise, type WorkoutSession } from '@/types/api'
 
 // Cardio is timed work, not lifting — it shouldn't color the strength heatmap.
 // The `cardio` primary group is the same signal the analytics landmark and the
@@ -37,4 +37,25 @@ export function sessionMuscleUsage(
   }
 
   return [...byGroup.entries()].map(([muscle_group, sets]) => ({ muscle_group, sets }))
+}
+
+// The distinct muscle groups a list of exercises will work — each exercise's
+// primary group plus every secondary group — for previewing "what will this hit"
+// on a workout day before it's started (PRD 0021). Cardio bouts are timed work,
+// not lifting, so they're dropped by default (same `isCardioExercise` rule the
+// heatmap uses): a pure running day yields an empty list and the caller hides
+// the section. Groups come back in canonical body-area order (`MUSCLE_GROUPS`)
+// so the badges read the same across every workout day.
+export function affectedMuscleGroups(
+  exercises: ReadonlyArray<Pick<SessionExercise, 'primary_muscle_group' | 'secondary_muscle_groups'>>,
+  opts?: { includeCardio?: boolean },
+): MuscleGroup[] {
+  const includeCardio = opts?.includeCardio ?? false
+  const present = new Set<MuscleGroup>()
+  for (const ex of exercises) {
+    if (!includeCardio && isCardioExercise(ex)) continue
+    present.add(ex.primary_muscle_group)
+    for (const g of ex.secondary_muscle_groups ?? []) present.add(g)
+  }
+  return MUSCLE_GROUPS.filter((g) => present.has(g))
 }

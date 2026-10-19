@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -183,6 +183,63 @@ describe('RoutineDetailPage', () => {
     const resume = await screen.findByRole('button', { name: /resume current workout/i })
     await userEvent.click(resume)
     expect(await screen.findByText('Session screen')).toBeInTheDocument()
+  })
+
+  // PRD 0021 — the detail page previews the distinct muscle groups the day will
+  // hit, before it is started.
+  it('shows an aggregated "Muscles worked" row from the exercises', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse(200, {
+          ...ROUTINE,
+          exercises: [
+            { ...ROUTINE.exercises[0], primary_muscle_group: 'chest', secondary_muscle_groups: ['triceps'] },
+            {
+              ...ROUTINE.exercises[0],
+              id: 'e2',
+              name: 'Overhead Press',
+              primary_muscle_group: 'shoulders',
+              secondary_muscle_groups: [],
+            },
+          ],
+        }),
+      ),
+    )
+    renderPage()
+    await screen.findByText('Bench Press')
+
+    // Scope to the "Muscles worked" card so these don't collide with the
+    // per-exercise primary badges in the list below.
+    const card = (await screen.findByText('Muscles worked')).closest('.card') as HTMLElement
+    expect(within(card).getByText('Chest')).toBeInTheDocument()
+    expect(within(card).getByText('Shoulders')).toBeInTheDocument()
+    // A secondary group that no exercise row shows as a primary badge still appears.
+    expect(within(card).getByText('Triceps')).toBeInTheDocument()
+  })
+
+  it('hides the "Muscles worked" row for a cardio-only day', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse(200, {
+          ...ROUTINE,
+          exercises: [
+            {
+              ...ROUTINE.exercises[0],
+              name: 'Treadmill Run',
+              measurement_type: 'duration',
+              primary_muscle_group: 'cardio',
+              secondary_muscle_groups: ['quads', 'calves'],
+            },
+          ],
+        }),
+      ),
+    )
+    renderPage()
+    await screen.findByText('Treadmill Run')
+    // Cardio is excluded, so there is nothing to aggregate — no section at all.
+    expect(screen.queryByText('Muscles worked')).not.toBeInTheDocument()
   })
 
   it('omits the hint when an exercise has no history', async () => {

@@ -10,6 +10,7 @@ import { Button, ErrorText, Field, Spinner } from '@/components/ui'
 import { ChevronRight, PencilIcon, PlusIcon } from '@/components/icons'
 import { ExercisePickerSheet } from '@/features/exercises/ExercisePickerSheet'
 import { muscleGroupLabel } from '@/types/api'
+import { affectedMuscleGroups } from '@/lib/sessionMuscles'
 import { formatLastSet, formatTarget } from '@/lib/format'
 import { ApiError } from '@/api/client'
 import { ACTIVE_SESSION_KEY, useActiveSession } from '@/hooks/useActiveSession'
@@ -104,6 +105,10 @@ export function RoutineDetailPage() {
   if (isError || !routine) return <Layout title="Not found" back="/workout"><ErrorText>Routine not found.</ErrorText></Layout>
 
   const exercises = routine.exercises ?? []
+  // The muscle groups this workout day will hit, so the user can see what it
+  // trains before starting it (PRD 0021). Cardio is excluded, so a pure running
+  // day shows nothing here.
+  const muscleGroups = affectedMuscleGroups(exercises)
 
   return (
     <Layout title={routine.name} back="/workout" backLabel="Workout">
@@ -114,6 +119,17 @@ export function RoutineDetailPage() {
           Edit
         </Button>
       </div>
+
+      {muscleGroups.length > 0 ? (
+        <div className="card stack">
+          <div className="section-label">Muscles worked</div>
+          <div className="row wrap">
+            {muscleGroups.map((g) => (
+              <span key={g} className="badge badge-active">{muscleGroupLabel(g)}</span>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {exercises.length > 0 ? (
         <>
