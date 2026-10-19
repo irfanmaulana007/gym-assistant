@@ -40,6 +40,7 @@ for the full document structure.
 | [0018](0018-ios-mobile-app.md) | iOS Mobile App (Parity with the Web UI) | Approved | mobile |
 | [0019](0019-session-distance-targets.md) | Distance Targets for Session Ad-Hoc Exercises | Superseded | api, web |
 | [0020](0020-cardio-session-logging.md) | Cardio Session Logging (distance target + distance/duration/pace/HR inputs) | Approved | api, web |
+| [0021](0021-muscle-groups-on-routine-detail.md) | Muscle Groups on the Workout-Day Detail (Before Start) | Approved | web |
 
 ## Status values
 

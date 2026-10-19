@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isCardioExercise, sessionMuscleUsage } from '@/lib/sessionMuscles'
+import { affectedMuscleGroups, isCardioExercise, sessionMuscleUsage } from '@/lib/sessionMuscles'
 import type { SessionExercise, WorkoutSession } from '@/types/api'
 
 // PRD 0013 — the session summary's body heatmap is driven by sets-per-muscle.
@@ -117,6 +117,59 @@ describe('sessionMuscleUsage', () => {
       expect(setsFor(usage, 'chest')).toBe(4)
       expect(setsFor(usage, 'triceps')).toBe(4)
     })
+  })
+})
+
+// PRD 0021 — the workout-day detail previews the distinct muscle groups a day
+// will hit (primary + secondary), before it is started. Cardio is excluded by
+// default so a pure running day shows nothing.
+describe('affectedMuscleGroups', () => {
+  it('returns the distinct primary and secondary groups of the exercises', () => {
+    const groups = affectedMuscleGroups([
+      exercise({ primary_muscle_group: 'chest', secondary_muscle_groups: ['triceps', 'shoulders'] }),
+      exercise({ primary_muscle_group: 'triceps', secondary_muscle_groups: ['chest'] }),
+    ])
+    // chest + triceps + shoulders, each once despite the overlap.
+    expect([...groups].sort()).toEqual(['chest', 'shoulders', 'triceps'])
+  })
+
+  it('orders groups by the canonical body-area order, not exercise order', () => {
+    const groups = affectedMuscleGroups([
+      exercise({ primary_muscle_group: 'core', secondary_muscle_groups: [] }),
+      exercise({ primary_muscle_group: 'chest', secondary_muscle_groups: ['back'] }),
+    ])
+    // MUSCLE_GROUPS order is chest → back → … → core, regardless of input order.
+    expect(groups).toEqual(['chest', 'back', 'core'])
+  })
+
+  it('excludes cardio exercises (and their secondary credit) by default', () => {
+    const groups = affectedMuscleGroups([
+      exercise({ primary_muscle_group: 'chest', secondary_muscle_groups: ['triceps'] }),
+      exercise({ primary_muscle_group: 'cardio', secondary_muscle_groups: ['quads'] }),
+    ])
+    expect(groups).toEqual(['chest', 'triceps'])
+    expect(groups).not.toContain('cardio')
+    expect(groups).not.toContain('quads')
+  })
+
+  it('returns an empty list for a pure cardio/running day', () => {
+    const groups = affectedMuscleGroups([
+      exercise({ primary_muscle_group: 'cardio', secondary_muscle_groups: ['quads', 'calves'] }),
+    ])
+    expect(groups).toEqual([])
+  })
+
+  it('keeps cardio and its secondary groups when includeCardio is true', () => {
+    const groups = affectedMuscleGroups(
+      [exercise({ primary_muscle_group: 'cardio', secondary_muscle_groups: ['quads'] })],
+      { includeCardio: true },
+    )
+    expect(groups).toContain('quads')
+    expect(groups).toContain('cardio')
+  })
+
+  it('returns an empty list when there are no exercises', () => {
+    expect(affectedMuscleGroups([])).toEqual([])
   })
 })
 
