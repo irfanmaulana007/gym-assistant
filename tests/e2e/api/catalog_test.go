@@ -211,6 +211,50 @@ func TestExerciseCatalog_ChestAndTriceps_E2E(t *testing.T) {
 	}
 }
 
+// TestExerciseCatalog_Legs_E2E verifies the leg movements added in migration
+// 0010 are seeded, served with their mapped primary muscle group (there is no
+// "legs" group — leg work maps to quads/hamstrings/glutes/calves), and
+// reachable via the muscle_group filter.
+func TestExerciseCatalog_Legs_E2E(t *testing.T) {
+	h := newHarnessWithDB(t)
+	token := h.registerUser(t, "legs@example.com", "supersecret1", "Leg")
+
+	wantPrimary := map[string]string{
+		"Single-Leg Romanian Deadlift": "hamstrings",
+		"Tibialis Raise":               "calves",
+		"Reverse Lunge":                "quads",
+		"Cossack Squat":                "quads",
+		"Isometric Single-Leg Hold":    "quads",
+		"Goblet Squat":                 "quads",
+		"Hip Flexor Raise":             "core",
+	}
+	for name, primary := range wantPrimary {
+		e := h.findCatalog(t, token, name)
+		if e.PrimaryMuscleGroup != primary {
+			t.Errorf("catalog %q primary = %q, want %q", name, e.PrimaryMuscleGroup, primary)
+		}
+	}
+
+	// The quads filter now returns the new quad-dominant movements.
+	quads := h.listCatalog(t, token, "muscle_group=quads")
+	for _, e := range quads {
+		if e.PrimaryMuscleGroup != "quads" {
+			t.Errorf("muscle_group=quads returned %q with primary %q", e.Name, e.PrimaryMuscleGroup)
+		}
+	}
+	for _, want := range []string{"Reverse Lunge", "Cossack Squat", "Goblet Squat"} {
+		if !hasCatalogName(quads, want) {
+			t.Errorf("muscle_group=quads missing %q", want)
+		}
+	}
+
+	// The duration-based isometric hold carries the catalog's duration default.
+	hold := h.findCatalog(t, token, "Isometric Single-Leg Hold")
+	if hold.DefaultMeasurementType != "duration" {
+		t.Errorf("Isometric Single-Leg Hold measurement = %q, want duration", hold.DefaultMeasurementType)
+	}
+}
+
 func hasCatalogName(entries []catalogEntry, name string) bool {
 	for _, e := range entries {
 		if e.Name == name {

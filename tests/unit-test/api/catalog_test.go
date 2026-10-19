@@ -112,6 +112,33 @@ func TestSeedEntriesValidVocab(t *testing.T) {
 	}
 }
 
+// TestSeedEntriesValidVocab0010 guards the leg rows added in migration 0010 —
+// same controlled-vocab rule the API enforces on any entry.
+func TestSeedEntriesValidVocab0010(t *testing.T) {
+	entries := []struct {
+		name        string
+		primary     string
+		secondary   []string
+		measurement string
+	}{
+		{"Single-Leg Romanian Deadlift", "hamstrings", []string{"glutes", "core"}, "weight_reps"},
+		{"Tibialis Raise", "calves", nil, "weight_reps"},
+		{"Reverse Lunge", "quads", []string{"glutes", "hamstrings"}, "weight_reps"},
+		{"Cossack Squat", "quads", []string{"glutes", "hamstrings", "calves"}, "weight_reps"},
+		{"Isometric Single-Leg Hold", "quads", []string{"glutes", "core"}, "duration"},
+		{"Goblet Squat", "quads", []string{"glutes", "core"}, "weight_reps"},
+		{"Hip Flexor Raise", "core", []string{"quads"}, "weight_reps"},
+	}
+	for _, e := range entries {
+		t.Run(e.name, func(t *testing.T) {
+			details := catalog.ValidateEntry(e.primary, e.secondary, e.measurement)
+			if len(details) != 0 {
+				t.Errorf("%q has invalid vocab: %v", e.name, details)
+			}
+		})
+	}
+}
+
 // TestSeedEntriesValidVocab0007 guards the forearm/grip and running rows added
 // in migration 0007 — same controlled-vocab rule the API enforces on any entry.
 func TestSeedEntriesValidVocab0007(t *testing.T) {
