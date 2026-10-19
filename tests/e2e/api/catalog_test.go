@@ -153,6 +153,55 @@ func TestExerciseCatalog_ForearmsAndRunning_E2E(t *testing.T) {
 	}
 }
 
+// TestExerciseCatalog_LegsAndChest_E2E verifies the leg and chest/triceps
+// movements added in migration 0009 are seeded, served with their mapped
+// primary muscle group (there is no "legs" group — leg work maps to
+// quads/hamstrings/glutes/calves), and reachable via the muscle_group filter.
+func TestExerciseCatalog_LegsAndChest_E2E(t *testing.T) {
+	h := newHarnessWithDB(t)
+	token := h.registerUser(t, "legschest@example.com", "supersecret1", "Leg")
+
+	wantPrimary := map[string]string{
+		// Legs
+		"Single-Leg Romanian Deadlift": "hamstrings",
+		"Tibialis Raise":               "calves",
+		"Reverse Lunge":                "quads",
+		"Cossack Squat":                "quads",
+		"Isometric Single-Leg Hold":    "quads",
+		"Goblet Squat":                 "quads",
+		"Hip Flexor Raise":             "core",
+		// Chest / triceps
+		"Chest Press":                 "chest",
+		"Pec Deck":                    "chest",
+		"Single-Arm Triceps Pushdown": "triceps",
+	}
+	for name, primary := range wantPrimary {
+		e := h.findCatalog(t, token, name)
+		if e.PrimaryMuscleGroup != primary {
+			t.Errorf("catalog %q primary = %q, want %q", name, e.PrimaryMuscleGroup, primary)
+		}
+	}
+
+	// The chest filter now returns the new machine movements.
+	chest := h.listCatalog(t, token, "muscle_group=chest")
+	for _, e := range chest {
+		if e.PrimaryMuscleGroup != "chest" {
+			t.Errorf("muscle_group=chest returned %q with primary %q", e.Name, e.PrimaryMuscleGroup)
+		}
+	}
+	for _, want := range []string{"Chest Press", "Pec Deck"} {
+		if !hasCatalogName(chest, want) {
+			t.Errorf("muscle_group=chest missing %q", want)
+		}
+	}
+
+	// The duration-based isometric hold carries the catalog's duration default.
+	hold := h.findCatalog(t, token, "Isometric Single-Leg Hold")
+	if hold.DefaultMeasurementType != "duration" {
+		t.Errorf("Isometric Single-Leg Hold measurement = %q, want duration", hold.DefaultMeasurementType)
+	}
+}
+
 func hasCatalogName(entries []catalogEntry, name string) bool {
 	for _, e := range entries {
 		if e.Name == name {
