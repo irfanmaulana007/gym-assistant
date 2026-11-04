@@ -1,4 +1,4 @@
-# Full-stack Gym Assistant — Postgres + Go API + web frontend.
+# Full-stack Gym Assistant — Postgres + Go API + web frontend + remote MCP.
 #
 # Two uses:
 #   1. Local end-to-end run of the production images:
@@ -59,6 +59,30 @@ services:
       - api
     ports:
       - "${WEB_PORT:-8081}:80"
+
+  # Remote MCP server (PRD 0023) — read-only tools over Streamable HTTP + OAuth,
+  # added in Claude as a custom connector at https://<your-mcp-domain>/mcp.
+  # In Dokploy, map that domain to `mcp` :3000.
+  mcp:
+    build:
+      context: .
+      dockerfile: apps/mcp/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      PORT: 3000
+      # Public https origin of this service (the OAuth issuer), no path.
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://localhost:8082}
+      # Required (>= 32 chars, `openssl rand -hex 32`); the mcp service refuses
+      # to start without it. Keys every sealed OAuth token — rotate to revoke
+      # all connections.
+      MCP_OAUTH_SECRET: ${MCP_OAUTH_SECRET:-}
+      # Must be https unless loopback, so point at the public API origin.
+      GYM_API_BASE_URL: ${GYM_API_BASE_URL:-https://api-gym.irfanmaulana007.com}
+      MCP_TRUST_PROXY: ${MCP_TRUST_PROXY:-1}
+    ports:
+      - "${MCP_PORT:-8082}:3000"
 
 volumes:
   db-data:

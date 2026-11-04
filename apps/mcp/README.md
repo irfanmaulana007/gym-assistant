@@ -9,6 +9,16 @@ writes any data.
 Pointed at **production** by default (`https://api-gym.irfanmaulana007.com`),
 overridable via `GYM_API_BASE_URL`.
 
+Two ways to run it:
+
+- **Local (stdio)** — Claude Code launches it as a child process with your
+  credentials in the environment. See [Add it to Claude Code](#add-it-to-claude-code).
+- **Remote (Streamable HTTP + OAuth)** — deployed once at a public URL and added
+  as a **custom connector** in Claude (web, desktop, mobile, cloud sessions).
+  You sign in with your Gym Assistant account; no password lives in the
+  deployment. See [Remote connector](#remote-connector-streamable-http--oauth)
+  and [PRD 0023](../../prd/0023-remote-mcp-oauth.md).
+
 ## What it exposes
 
 All tools are read-only (GET-only against the API):
@@ -107,6 +117,49 @@ claude mcp add gym-assistant \
 
 Then ask Claude things like _"what did my last leg day look like?"_ or
 _"show my bench press progression over the last 90 days."_
+
+## Remote connector (Streamable HTTP + OAuth)
+
+`npm --workspace apps/mcp run start:http` (or the `apps/mcp/Dockerfile` image /
+the `mcp` service in the root `docker-compose.yml`) serves:
+
+| Path | What |
+|------|------|
+| `POST /mcp` | MCP Streamable HTTP endpoint (stateless, Bearer-protected) |
+| `/.well-known/oauth-protected-resource/mcp`, `/.well-known/oauth-authorization-server` | OAuth discovery |
+| `/register`, `/authorize`, `/oauth/login`, `/token`, `/revoke` | OAuth 2.1 (DCR + PKCE) with a sign-in page |
+| `GET /healthz` | Liveness |
+
+Config (env):
+
+| Var | Required | Default |
+|-----|----------|---------|
+| `MCP_PUBLIC_URL` | yes | — public https origin, no path (e.g. `https://mcp-gym.irfanmaulana007.com`) |
+| `MCP_OAUTH_SECRET` | yes | — ≥ 32 chars (`openssl rand -hex 32`) |
+| `GYM_API_BASE_URL` | no | production API |
+| `PORT` | no | `3000` |
+| `MCP_TRUST_PROXY` | no | `1` (hops; Traefik in Dokploy) |
+| `GYM_API_TIMEOUT_MS` | no | `15000` |
+
+Tokens are stateless: client ids, codes, access and refresh tokens are
+AES-256-GCM sealed with a key derived from `MCP_OAUTH_SECRET`, so redeploys
+don't disconnect anyone. **Rotating the secret revokes every connection.**
+Access tokens live as long as the API JWT inside them; refresh goes through the
+API's `/auth/refresh`.
+
+### Deploy on Dokploy
+
+1. Set `MCP_PUBLIC_URL` and `MCP_OAUTH_SECRET` in the compose environment.
+2. Add a domain (e.g. `mcp-gym.irfanmaulana007.com`) routed to service `mcp`,
+   port `3000`, with HTTPS.
+3. Check `https://<domain>/healthz` returns `{"status":"ok"}`.
+
+### Connect from Claude
+
+Settings → Connectors → **Add custom connector** → URL
+`https://<domain>/mcp` → Connect → sign in with your Gym Assistant
+email/username + password. The tools then show up in any Claude chat or
+session on that account.
 
 ## Tests
 
