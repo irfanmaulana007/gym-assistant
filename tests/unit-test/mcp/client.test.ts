@@ -119,6 +119,59 @@ describe('GymApiClient', () => {
     expect(loginCount).toBe(1)
   })
 
+  it('does not refresh again when the token already rotated before a late 401 (F9)', async () => {
+    // Scenario: call A and call B both send the (now expired) token T1. A's 401
+    // comes back first and rotates the token to a valid T2. B's 401 arrives only
+    // afterwards — since B sent T1 but the current token is already the valid
+    // T2, B must reuse T2 and NOT trigger a second refresh.
+    let validToken = ''
+    let refreshCount = 0
+    let invalidSeen = 0
+    let releaseLate: (r: Response) => void = () => {}
+    const lateResponse = new Promise<Response>((resolve) => {
+      releaseLate = resolve
+    })
+    let gateReleased = false
+
+    const fetchMock = vi.fn<typeof fetch>(async (url, init) => {
+      const u = String(url)
+      if (u.endsWith('/auth/login')) {
+        validToken = 'T1'
+        return jsonResponse({ token: 'T1', refresh_token: 'R1' })
+      }
+      if (u.endsWith('/auth/refresh')) {
+        refreshCount++
+        validToken = 'T2'
+        return jsonResponse({ token: 'T2', refresh_token: 'R2' })
+      }
+      // GET
+      if (authHeader(init) === `Bearer ${validToken}`) {
+        // A's retry with the fresh T2 — unblock B's still-pending 401.
+        if (!gateReleased) {
+          gateReleased = true
+          releaseLate(jsonResponse({ error: { code: 'unauthorized' } }, 401))
+        }
+        return jsonResponse({ ok: true })
+      }
+      // Invalid token: A's attempt 401s immediately; B's attempt is held until
+      // A has finished rotating the token.
+      invalidSeen++
+      return invalidSeen === 2 ? lateResponse : jsonResponse({ error: { code: 'unauthorized' } }, 401)
+    })
+
+    const client = new GymApiClient(
+      { baseUrl: BASE, identifier: 'me@example.com', password: 'pw', timeoutMs: 15000 },
+      fetchMock,
+    )
+
+    await client.get('seed') // login -> T1
+    validToken = 'EXPIRED' // both A and B will now send an invalid T1
+    const results = await Promise.all([client.get('a'), client.get('b')])
+
+    expect(results.every((r) => (r as { ok: boolean }).ok)).toBe(true)
+    expect(refreshCount).toBe(1) // one refresh total — B reused A's rotated token
+  })
+
   it('logs in only once for concurrent first-use calls', async () => {
     let loginCount = 0
     const fetchMock = vi.fn<typeof fetch>(async (url) => {

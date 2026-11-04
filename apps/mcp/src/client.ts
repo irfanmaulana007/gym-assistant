@@ -67,10 +67,14 @@ export class GymApiClient {
 
     const url = this.buildUrl(path, query)
 
+    // Capture the token actually sent, so that if a concurrent call already
+    // rotated it to a fresh valid token by the time this 401 is handled, we
+    // reuse theirs instead of refreshing again.
+    const sentToken = this.accessToken
     let res = await this.sendGet(url)
     if (res.status === 401) {
       // Token may be expired/invalid — reacquire once (single-flight) and retry.
-      await this.reacquire(this.accessToken)
+      await this.reacquire(sentToken)
       res = await this.sendGet(url)
     }
 
