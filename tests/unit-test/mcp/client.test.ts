@@ -11,11 +11,16 @@ function jsonResponse(body: unknown, status = 200): Response {
   })
 }
 
+function authHeader(init?: RequestInit): string | undefined {
+  return (init?.headers as Record<string, string> | undefined)?.Authorization
+}
+
 describe('loadConfig', () => {
   it('defaults the base URL to production and strips trailing slashes', () => {
     const cfg = loadConfig({ GYM_API_TOKEN: 'abc' } as NodeJS.ProcessEnv)
     expect(cfg.baseUrl).toBe('https://api-gym.irfanmaulana007.com')
     expect(cfg.token).toBe('abc')
+    expect(cfg.timeoutMs).toBe(15000)
   })
 
   it('throws when no credential is provided', () => {
@@ -29,6 +34,26 @@ describe('loadConfig', () => {
     } as NodeJS.ProcessEnv)
     expect(cfg.identifier).toBe('me@example.com')
   })
+
+  it('rejects a non-https base URL for a non-local host', () => {
+    expect(() =>
+      loadConfig({ GYM_API_TOKEN: 'abc', GYM_API_BASE_URL: 'http://api.example.com' } as NodeJS.ProcessEnv),
+    ).toThrow(/https/)
+  })
+
+  it('allows http for localhost', () => {
+    const cfg = loadConfig({
+      GYM_API_TOKEN: 'abc',
+      GYM_API_BASE_URL: 'http://localhost:8080',
+    } as NodeJS.ProcessEnv)
+    expect(cfg.baseUrl).toBe('http://localhost:8080')
+  })
+
+  it('validates GYM_API_TIMEOUT_MS', () => {
+    expect(() =>
+      loadConfig({ GYM_API_TOKEN: 'a', GYM_API_TIMEOUT_MS: 'nope' } as NodeJS.ProcessEnv),
+    ).toThrow(/GYM_API_TIMEOUT_MS/)
+  })
 })
 
 describe('GymApiClient', () => {
@@ -39,54 +64,131 @@ describe('GymApiClient', () => {
       .mockResolvedValueOnce(jsonResponse({ routines: [{ id: 'r1', name: 'Push' }] }))
 
     const client = new GymApiClient(
-      { baseUrl: BASE, identifier: 'me@example.com', password: 'pw' },
+      { baseUrl: BASE, identifier: 'me@example.com', password: 'pw', timeoutMs: 15000 },
       fetchMock,
     )
 
     const data = await client.get<{ routines: unknown[] }>('routines')
     expect(data.routines).toHaveLength(1)
 
-    // First call: login (POST). Second: the GET with the bearer token.
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    const [loginUrl, loginInit] = fetchMock.mock.calls[0]
-    expect(loginUrl).toBe(`${BASE}/api/v1/auth/login`)
-    expect(loginInit?.method).toBe('POST')
-
-    const [getUrl, getInit] = fetchMock.mock.calls[1]
-    expect(getUrl).toBe(`${BASE}/api/v1/routines`)
-    expect(getInit?.method).toBe('GET')
-    expect((getInit?.headers as Record<string, string>).Authorization).toBe('Bearer JWT1')
+    expect(fetchMock.mock.calls[0][0]).toBe(`${BASE}/api/v1/auth/login`)
+    expect(fetchMock.mock.calls[0][1]?.method).toBe('POST')
+    expect(fetchMock.mock.calls[1][0]).toBe(`${BASE}/api/v1/routines`)
+    expect(authHeader(fetchMock.mock.calls[1][1])).toBe('Bearer JWT1')
   })
 
-  it('refreshes and retries once on a 401', async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      // initial GET with the stale static token -> 401
-      .mockResolvedValueOnce(jsonResponse({ error: { code: 'unauthorized' } }, 401))
-      // refresh exchange
-      .mockResolvedValueOnce(jsonResponse({ token: 'JWT2', refresh_token: 'R2' }))
-      // retried GET succeeds
-      .mockResolvedValueOnce(jsonResponse({ ok: true }))
+  it('refreshes once for N concurrent 401s (never replays a single-use token)', async () => {
+    let validToken = ''
+    let refreshCount = 0
+    let loginCount = 0
+
+    const fetchMock = vi.fn<typeof fetch>(async (url, init) => {
+      const u = String(url)
+      if (u.endsWith('/auth/login')) {
+        loginCount++
+        validToken = 'JWT1'
+        return jsonResponse({ token: 'JWT1', refresh_token: 'R1' })
+      }
+      if (u.endsWith('/auth/refresh')) {
+        refreshCount++
+        validToken = 'JWT2'
+        return jsonResponse({ token: 'JWT2', refresh_token: 'R2' })
+      }
+      return authHeader(init) === `Bearer ${validToken}`
+        ? jsonResponse({ ok: true })
+        : jsonResponse({ error: { code: 'unauthorized' } }, 401)
+    })
 
     const client = new GymApiClient(
-      { baseUrl: BASE, token: 'STALE', refreshToken: 'R1' },
+      { baseUrl: BASE, identifier: 'me@example.com', password: 'pw', timeoutMs: 15000 },
       fetchMock,
     )
 
-    const data = await client.get<{ ok: boolean }>('auth/me')
-    expect(data.ok).toBe(true)
-    expect(fetchMock).toHaveBeenCalledTimes(3)
+    // Establish JWT1 via a login.
+    await client.get('auth/me')
+    expect(loginCount).toBe(1)
 
-    const retryInit = fetchMock.mock.calls[2][1]
-    expect((retryInit?.headers as Record<string, string>).Authorization).toBe('Bearer JWT2')
+    // Access token expires: now JWT1 is rejected. Fire several concurrent calls.
+    validToken = 'EXPIRED'
+    const results = await Promise.all([client.get('a'), client.get('b'), client.get('c')])
+
+    expect(results.every((r) => (r as { ok: boolean }).ok)).toBe(true)
+    // Exactly one refresh for all three concurrent 401s — no replay.
+    expect(refreshCount).toBe(1)
+    expect(loginCount).toBe(1)
+  })
+
+  it('logs in only once for concurrent first-use calls', async () => {
+    let loginCount = 0
+    const fetchMock = vi.fn<typeof fetch>(async (url) => {
+      if (String(url).endsWith('/auth/login')) {
+        loginCount++
+        return jsonResponse({ token: 'JWT1', refresh_token: 'R1' })
+      }
+      return jsonResponse({ ok: true })
+    })
+
+    const client = new GymApiClient(
+      { baseUrl: BASE, identifier: 'me@example.com', password: 'pw', timeoutMs: 15000 },
+      fetchMock,
+    )
+
+    await Promise.all([client.get('a'), client.get('b'), client.get('c')])
+    expect(loginCount).toBe(1)
+  })
+
+  it('falls back to login when a refresh fails', async () => {
+    let validToken = ''
+    let loginCount = 0
+    const fetchMock = vi.fn<typeof fetch>(async (url, init) => {
+      const u = String(url)
+      if (u.endsWith('/auth/login')) {
+        loginCount++
+        validToken = loginCount === 1 ? 'JWT1' : 'JWT2'
+        return jsonResponse({ token: validToken, refresh_token: `R${loginCount}` })
+      }
+      if (u.endsWith('/auth/refresh')) {
+        return jsonResponse({ error: { code: 'unauthorized' } }, 401) // reuse/expired
+      }
+      return authHeader(init) === `Bearer ${validToken}`
+        ? jsonResponse({ ok: true })
+        : jsonResponse({ error: { code: 'unauthorized' } }, 401)
+    })
+
+    const client = new GymApiClient(
+      { baseUrl: BASE, identifier: 'me@example.com', password: 'pw', timeoutMs: 15000 },
+      fetchMock,
+    )
+
+    await client.get('auth/me') // login #1 -> JWT1
+    validToken = 'EXPIRED' // force a 401 -> refresh fails -> login #2
+    const res = await client.get<{ ok: boolean }>('auth/me')
+    expect(res.ok).toBe(true)
+    expect(loginCount).toBe(2)
+  })
+
+  it('gives a static-token-only client a clear message when the token is rejected', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ error: { code: 'unauthorized' } }, 401))
+
+    const client = new GymApiClient({ baseUrl: BASE, token: 'STALE', timeoutMs: 15000 }, fetchMock)
+
+    const err = await client.get('auth/me').catch((e) => e)
+    expect(err).toBeInstanceOf(GymApiError)
+    expect(err.message).toMatch(/GYM_API_TOKEN/)
+    // No login/refresh is possible, so no auth endpoints were called.
+    expect(
+      fetchMock.mock.calls.every(
+        ([u]) => !String(u).endsWith('/auth/login') && !String(u).endsWith('/auth/refresh'),
+      ),
+    ).toBe(true)
   })
 
   it('builds query strings, dropping empty values', async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(jsonResponse({ exercises: [] }))
-
-    const client = new GymApiClient({ baseUrl: BASE, token: 'T' }, fetchMock)
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(jsonResponse({ exercises: [] }))
+    const client = new GymApiClient({ baseUrl: BASE, token: 'T', timeoutMs: 15000 }, fetchMock)
     await client.get('exercise-catalog', { search: 'bench', muscle_group: undefined, empty: '' })
 
     const url = new URL(fetchMock.mock.calls[0][0] as string)
@@ -102,15 +204,34 @@ describe('GymApiClient', () => {
       .mockResolvedValue(
         jsonResponse({ error: { code: 'not_found', message: 'routine not found' } }, 404),
       )
+    const client = new GymApiClient({ baseUrl: BASE, token: 'T', timeoutMs: 15000 }, fetchMock)
 
-    const client = new GymApiClient({ baseUrl: BASE, token: 'T' }, fetchMock)
-
-    const err = await client.get('routines/nope').catch((e) => e)
+    const err = await client.get('routines/x').catch((e) => e)
     expect(err).toBeInstanceOf(GymApiError)
-    expect(err).toMatchObject({
-      status: 404,
-      code: 'not_found',
-      message: 'routine not found',
+    expect(err).toMatchObject({ status: 404, code: 'not_found', message: 'routine not found' })
+  })
+
+  it('maps a request timeout to a GymApiError', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => {
+      const e = new Error('timed out')
+      e.name = 'TimeoutError'
+      throw e
     })
+    const client = new GymApiClient({ baseUrl: BASE, token: 'T', timeoutMs: 5 }, fetchMock)
+
+    const err = await client.get('auth/me').catch((e) => e)
+    expect(err).toBeInstanceOf(GymApiError)
+    expect(err.code).toBe('timeout')
+  })
+
+  it('maps a network failure to a GymApiError', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => {
+      throw new TypeError('fetch failed')
+    })
+    const client = new GymApiClient({ baseUrl: BASE, token: 'T', timeoutMs: 15000 }, fetchMock)
+
+    const err = await client.get('auth/me').catch((e) => e)
+    expect(err).toBeInstanceOf(GymApiError)
+    expect(err.code).toBe('network_error')
   })
 })

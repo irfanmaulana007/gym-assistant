@@ -9,10 +9,14 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 // A self-contained mock of the Gym Assistant API on an ephemeral port — never
 // the real API and never a dev port (per .claude/rules/testing.md).
 
+const MISSING_UUID = '00000000-0000-4000-8000-000000000000'
+const SESSION_UUID = '22222222-2222-4222-8222-222222222222'
 const PROFILE = { id: 'u1', display_name: 'Test Lifter', preferred_weight_unit: 'kg' }
-const SESSIONS = { sessions: [{ id: 's1', status: 'completed', performed_at: '2026-10-01T00:00:00Z' }] }
+const SESSIONS = {
+  sessions: [{ id: SESSION_UUID, status: 'completed', performed_at: '2026-10-01T00:00:00Z' }],
+}
 const SESSION_DETAIL = {
-  id: 's1',
+  id: SESSION_UUID,
   status: 'completed',
   exercises: [{ id: 'se1', name_snapshot: 'Bench Press', entries: [{ weight: 60, reps: 8 }] }],
 }
@@ -34,9 +38,9 @@ beforeAll(async () => {
 
     if (req.method === 'GET' && url.pathname === '/api/v1/auth/me') return send(res, 200, PROFILE)
     if (req.method === 'GET' && url.pathname === '/api/v1/sessions') return send(res, 200, SESSIONS)
-    if (req.method === 'GET' && url.pathname === '/api/v1/sessions/s1')
+    if (req.method === 'GET' && url.pathname === `/api/v1/sessions/${SESSION_UUID}`)
       return send(res, 200, SESSION_DETAIL)
-    if (req.method === 'GET' && url.pathname === '/api/v1/routines/missing')
+    if (req.method === 'GET' && url.pathname === `/api/v1/routines/${MISSING_UUID}`)
       return send(res, 404, { error: { code: 'not_found', message: 'routine not found' } })
 
     return send(res, 404, { error: { code: 'not_found', message: 'unexpected path' } })
@@ -110,7 +114,7 @@ describe('gym-assistant MCP server (stdio, end-to-end)', () => {
     try {
       const result = (await client.callTool({
         name: 'get_session',
-        arguments: { session_id: 's1' },
+        arguments: { session_id: SESSION_UUID },
       })) as { content: Array<{ type: string; text?: string }> }
       const data = JSON.parse(textOf(result))
       expect(data.exercises[0].name_snapshot).toBe('Bench Press')
@@ -124,7 +128,7 @@ describe('gym-assistant MCP server (stdio, end-to-end)', () => {
     try {
       const result = (await client.callTool({
         name: 'get_routine',
-        arguments: { routine_id: 'missing' },
+        arguments: { routine_id: MISSING_UUID },
       })) as { isError?: boolean; content: Array<{ type: string; text?: string }> }
       expect(result.isError).toBe(true)
       expect(textOf(result)).toMatch(/404/)
