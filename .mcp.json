@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "gym-assistant": {
+      "command": "node",
+      "args": ["apps/mcp/dist/index.js"],
+      "env": {
+        "GYM_API_BASE_URL": "${GYM_API_BASE_URL:-https://api-gym.irfanmaulana007.com}",
+        "GYM_API_IDENTIFIER": "${GYM_API_IDENTIFIER}",
+        "GYM_API_PASSWORD": "${GYM_API_PASSWORD}"
+      }
+    }
+  }
+}

@@ -21,6 +21,10 @@ scripts, and config:
 - [`apps/web`](apps/web/CLAUDE.md) — **React + Vite + TypeScript** frontend,
   **mobile-first**.
 - [`apps/mobile`](apps/mobile) — placeholder; not part of Phase 1.
+- [`apps/mcp`](apps/mcp/CLAUDE.md) — **TypeScript** read-only Model Context
+  Protocol server (stdio). Exposes the user's profile and workout history to MCP
+  clients (e.g. Claude Code) by calling the `apps/api` HTTP API with a JWT.
+  GET-only; no DB access. See [PRD 0022](prd/0022-mcp-server.md).
 
 Supporting dirs: [`prd/`](prd/) (requirements), [`documentations/`](documentations/)
 (reference docs), [`tests/`](tests/) (`unit-test/`, `e2e/`), [`scripts/`](scripts/).

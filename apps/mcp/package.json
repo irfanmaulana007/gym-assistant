@@ -1,0 +1,31 @@
+{
+  "name": "gym-assistant-mcp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Read-only MCP server exposing a user's Gym Assistant profile and workout history to MCP clients (Claude Code).",
+  "bin": {
+    "gym-assistant-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}
