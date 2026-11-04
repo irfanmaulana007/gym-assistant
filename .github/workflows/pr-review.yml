@@ -6,7 +6,10 @@ on:
 
 jobs:
   review:
-    uses: irfanmaulana007/ai-review/.github/workflows/claude-review.yml@main
+    # Local (vendored) reusable workflow. A public repo cannot call a reusable
+    # workflow stored in a private repo, so claude-review.yml is vendored here
+    # from the private irfanmaulana007/ai-review repo and called by path.
+    uses: ./.github/workflows/claude-review.yml
     secrets: inherit
     # Opsional:
     # with:
