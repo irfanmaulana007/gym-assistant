@@ -32,14 +32,20 @@ All tools are read-only (GET-only against the API):
 
 ## Configuration
 
-All config comes from the environment (no hardcoded secrets). Auth is resolved
-in this order — supply **one**:
+All config comes from the environment (no hardcoded secrets). Auth — supply **one**:
 
-1. `GYM_API_TOKEN` — a pre-obtained JWT access token.
-2. `GYM_API_REFRESH_TOKEN` — an opaque refresh token (exchanged + auto-rotated).
-3. `GYM_API_IDENTIFIER` (or `GYM_API_EMAIL`) **and** `GYM_API_PASSWORD` — login.
+1. `GYM_API_IDENTIFIER` (or `GYM_API_EMAIL`) **and** `GYM_API_PASSWORD` — login
+   (recommended; the server rotates tokens internally for its lifetime).
+2. `GYM_API_TOKEN` — a pre-obtained short-lived JWT access token (used as-is, no
+   auto-renew).
 
-Optional: `GYM_API_BASE_URL` (defaults to production).
+> A raw refresh token is intentionally **not** accepted as a startup credential:
+> the API single-uses/rotates refresh tokens, so replaying one on each launch
+> would trigger reuse-detection and revoke every session you have.
+
+Optional:
+- `GYM_API_BASE_URL` (defaults to production; must be `https` for any non-local host).
+- `GYM_API_TIMEOUT_MS` (per-request timeout, default `15000`).
 
 See [`.env.example`](.env.example).
 

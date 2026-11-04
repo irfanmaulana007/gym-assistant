@@ -12,14 +12,19 @@ list and setup.
   lens over existing data, not a second write path. New product capabilities go
   through `apps/api` (and a PRD) first.
 - **Config from env only** (`src/config.ts`) — no hardcoded secrets, no baked-in
-  credentials. Base URL defaults to production.
+  credentials. Base URL defaults to production and must be `https` for any
+  non-local host; requests carry a timeout (`GYM_API_TIMEOUT_MS`).
 - **Add a tool** by appending a `ToolDef` to the `TOOLS` table in
   `src/tools.ts` (name, title, description, zod `inputSchema`, and a `request()`
   that returns the API path + query). `server.ts` registers the whole table
   automatically — no per-tool wiring.
 - **Never write to stdout** — it is the MCP transport. Diagnostics go to stderr.
 - **Auth lives in `GymApiClient`** — it resolves a token lazily and retries once
-  on a 401 (refresh, else re-login). Keep that the single place auth happens.
+  on a 401 (refresh, else re-login). Token acquisition is **single-flight**
+  (concurrent 401s share one in-flight refresh) so a single-use refresh token is
+  never replayed — replaying one makes the API revoke every session. A raw
+  refresh token is never accepted from the environment for the same reason. Keep
+  that the single place auth happens.
 
 ## Checks before done
 

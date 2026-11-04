@@ -16,6 +16,24 @@ export interface ToolDef {
   request: (args: Record<string, unknown>) => { path: string; query?: Record<string, unknown> }
 }
 
+// The API's `muscle_group` enum (apps/api migration 0001).
+const MUSCLE_GROUPS = [
+  'chest',
+  'back',
+  'shoulders',
+  'biceps',
+  'triceps',
+  'forearms',
+  'quads',
+  'hamstrings',
+  'glutes',
+  'calves',
+  'core',
+  'full_body',
+  'cardio',
+  'other',
+] as const
+
 const windowArgs = {
   window: z
     .string()
@@ -47,9 +65,9 @@ export const TOOLS: ToolDef[] = [
     description:
       'Fetch a single routine by id, including its configured exercises and per-exercise targets (sets/reps/weight/duration/distance).',
     inputSchema: {
-      routine_id: z.string().describe('The routine UUID (from list_routines).'),
+      routine_id: z.string().uuid().describe('The routine UUID (from list_routines).'),
     },
-    request: (a) => ({ path: `routines/${a.routine_id as string}` }),
+    request: (a) => ({ path: `routines/${encodeURIComponent(a.routine_id as string)}` }),
   },
   {
     name: 'get_exercise_history',
@@ -59,9 +77,10 @@ export const TOOLS: ToolDef[] = [
     inputSchema: {
       exercise_id: z
         .string()
+        .uuid()
         .describe('The exercise UUID (from get_routine → exercises[].id).'),
     },
-    request: (a) => ({ path: `exercises/${a.exercise_id as string}/history` }),
+    request: (a) => ({ path: `exercises/${encodeURIComponent(a.exercise_id as string)}/history` }),
   },
   {
     name: 'search_exercise_catalog',
@@ -71,11 +90,9 @@ export const TOOLS: ToolDef[] = [
     inputSchema: {
       search: z.string().optional().describe('Case-insensitive name substring, e.g. "bench".'),
       muscle_group: z
-        .string()
+        .enum(MUSCLE_GROUPS)
         .optional()
-        .describe(
-          'Filter by primary muscle group: chest, back, shoulders, biceps, triceps, forearms, quads, hamstrings, glutes, calves, core, full_body, cardio, other.',
-        ),
+        .describe('Filter by primary muscle group (one of the API muscle_group enum values).'),
     },
     request: (a) => ({
       path: 'exercise-catalog',
@@ -99,9 +116,9 @@ export const TOOLS: ToolDef[] = [
     description:
       'Fetch one workout session in full: lifecycle events, each exercise performed, every logged set (weight/reps/duration/distance/RPE/heart-rate), and the derived last set.',
     inputSchema: {
-      session_id: z.string().describe('The session UUID (from list_sessions).'),
+      session_id: z.string().uuid().describe('The session UUID (from list_sessions).'),
     },
-    request: (a) => ({ path: `sessions/${a.session_id as string}` }),
+    request: (a) => ({ path: `sessions/${encodeURIComponent(a.session_id as string)}` }),
   },
   {
     name: 'get_analytics_dashboard',
