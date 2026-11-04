@@ -15,6 +15,7 @@
 - `api` - Backend changes (`apps/api`)
 - `web` - Web frontend changes (`apps/web`)
 - `mobile` - Mobile app changes (`apps/mobile`)
+- `mcp` - MCP server changes (`apps/mcp`)
 - `migration` - Database migrations
 - `scripts` - Script changes
 - `docs` - Documentation / PRD changes
