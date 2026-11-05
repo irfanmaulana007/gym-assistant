@@ -415,4 +415,34 @@ describe('GymOAuthProvider', () => {
     } as OAuthClientInformationFull)
     expect(ok.client_id).toBeTruthy()
   })
+
+  it('applies a newly-enabled allowlist retroactively via getClient (F11/F12)', async () => {
+    const sealer = new Sealer(SECRET)
+    // Provider A: no allowlist — a client registers with an arbitrary redirect.
+    const open = new GymOAuthProvider({ sealer, apiAuth: {} as ApiAuth, resourceUrl: RESOURCE })
+    const client = open.clientsStore.registerClient!({
+      redirect_uris: ['https://evil.example/cb'],
+      token_endpoint_auth_method: 'none',
+    } as OAuthClientInformationFull)
+    expect(await open.clientsStore.getClient(client.client_id)).toBeDefined()
+
+    // Provider B: same sealing secret, but an allowlist that excludes that URI.
+    // The pre-existing (stateless) client id must no longer open.
+    const locked = new GymOAuthProvider({
+      sealer,
+      apiAuth: {} as ApiAuth,
+      resourceUrl: RESOURCE,
+      allowedRedirectUris: ['https://claude.ai/api/mcp/auth_callback'],
+    })
+    expect(await locked.clientsStore.getClient(client.client_id)).toBeUndefined()
+
+    const loginToken = sealer.seal(
+      'login',
+      { c: client.client_id, r: 'https://evil.example/cb', ch: 'c', sc: [], rs: RESOURCE.href },
+      600,
+    )
+    const result = await locked.completeLogin(loginToken, 'x', 'y')
+    expect(result).toMatchObject({ kind: 'page', status: 400 })
+    expect((result as { html: string }).html).toContain('Unknown client')
+  })
 })

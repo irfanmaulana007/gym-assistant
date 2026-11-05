@@ -84,11 +84,20 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
     )
   }
 
-  // Per-IP backstop (runs before the body is parsed). With `trust proxy` 0 this
-  // keys on the real socket address, which cannot be spoofed via X-Forwarded-For.
+  // Per-IP backstop. Runs before the body is parsed, so it cannot render the
+  // friendly page (no login_token yet) and returns express-rate-limit's plain
+  // 429. With `trust proxy` 0 it keys on the real socket address, which cannot be
+  // spoofed via X-Forwarded-For. Skips successful logins so several users behind
+  // one NAT IP don't exhaust it just by signing in.
   const loginLimiter = opts.disableRateLimits
     ? passthrough
-    : rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false })
+    : rateLimit({
+        windowMs: 15 * 60 * 1000,
+        limit: 20,
+        skipSuccessfulRequests: true,
+        standardHeaders: true,
+        legacyHeaders: false,
+      })
   // Strict per-(identifier, IP) limiter: throttles guessing against one account
   // from one source without letting an attacker's IP exhaust the victim's own
   // bucket (so it can't be used to lock a user out of connecting).
@@ -104,8 +113,10 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
         handler: throttledPage,
       })
   // Looser account-wide limiter: bounds distributed guessing across many IPs
-  // against one account. Set high enough that casual lockout is impractical, but
-  // low enough to cap a botnet (the Go API has no login throttle of its own).
+  // against one account (the Go API has no login throttle of its own). Keyed on
+  // the identifier alone, so it is a deliberate, weaker lockout lever — someone
+  // who knows a username can hold that account at 429 with 50 failed attempts an
+  // hour. That trade-off (vs. unbounded guessing) is documented in PRD 0023.
   const accountLimiter = opts.disableRateLimits
     ? passthrough
     : rateLimit({

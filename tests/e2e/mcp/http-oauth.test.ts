@@ -297,7 +297,7 @@ describe('remote MCP over Streamable HTTP + OAuth', () => {
 // stores start empty — express-rate-limit keys on IP, so sharing one app would
 // bleed counts (and the per-IP backstop) between tests.
 describe('remote MCP login rate limiting', () => {
-  async function startApp(): Promise<{ server: Server; base: string }> {
+  async function startApp(trustProxy = 0): Promise<{ server: Server; base: string }> {
     const server = createServer()
     await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
@@ -307,7 +307,7 @@ describe('remote MCP login rate limiting', () => {
       publicUrl: base,
       oauthSecret: randomBytes(32).toString('hex'),
       port: 0,
-      trustProxy: 0,
+      trustProxy,
       allowedRedirectUris: [],
     })
     server.on('request', app)
@@ -357,6 +357,34 @@ describe('remote MCP login rate limiting', () => {
       expect((await attempt('lifter', 'pw')).status).toBe(302)
       expect((await attempt('lifter', 'wrong')).status).toBe(401) // 10th failure, not throttled
       expect((await attempt('lifter', 'wrong')).status).toBe(429) // 11th failure, throttled
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()))
+    }
+  })
+
+  it('trips the account-wide limiter across many IPs for one identifier (F10/F12)', async () => {
+    // trust proxy 1 → req.ip is the X-Forwarded-For value, so a rotating XFF puts
+    // every request in its own (identifier, IP) and per-IP bucket. Only the
+    // account-wide limiter (keyed on the identifier alone, 50 / h) can then trip.
+    const { server, base } = await startApp(1)
+    try {
+      const client = await register(base)
+      const { html } = await openLoginPage(client.client_id, 'a'.repeat(43), base)
+      const token = loginTokenOf(html)
+      const attempt = (i: number) =>
+        fetch(`${base}/oauth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Forwarded-For': `10.0.0.${i}` },
+          body: form({ login_token: token, identifier: 'victim', password: 'wrong' }),
+          redirect: 'manual',
+        })
+
+      let status = 0
+      for (let i = 1; i <= 50; i++) status = (await attempt(i)).status
+      expect(status).toBe(401) // 50 failures from 50 distinct IPs all pass the per-IP limits
+      const blocked = await attempt(51)
+      expect(blocked.status).toBe(429) // the account-wide cap trips on the 51st
+      expect(await blocked.text()).toContain('Too many attempts')
     } finally {
       await new Promise<void>((r) => server.close(() => r()))
     }
