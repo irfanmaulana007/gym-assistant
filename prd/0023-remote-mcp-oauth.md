@@ -123,15 +123,19 @@ replayed as another:
   and the redirect destination the code will be sent to (host, or the full URI
   when there is no host), so a phishing client with a spoofed name is visible to
   the user. Operators can additionally restrict DCR to an exact allowlist via
-  `MCP_ALLOWED_REDIRECT_URIS` (unset = accept any).
+  `MCP_ALLOWED_REDIRECT_URIS` (unset = accept any); it is enforced on both
+  registration *and* every client-id open, so enabling it retroactively disables
+  any already-issued client whose redirect URIs are not allowed — no secret
+  rotation required.
 - Scopes: only `read` is advertised/granted; unknown requested scopes are dropped
   rather than echoed back as granted.
 - Login page: `Content-Security-Policy` (no scripts, `form-action 'self'`),
   `X-Frame-Options: DENY`, `Cache-Control: no-store`, HTML-escaped output.
-- Rate limits: SDK defaults on OAuth endpoints, a per-IP login limiter, and a
-  per-`(identifier, IP)` limiter (failed attempts only) so password guessing is
-  throttled without letting one actor lock a victim out of connecting; when it
-  trips it re-renders the sign-in page with a friendly message.
+- Rate limits on login (failed attempts only, friendly 429 page): a per-IP
+  backstop (20 / 15 min), a strict per-`(identifier, IP)` limiter (10 / 15 min)
+  that throttles guessing without letting one actor lock a victim out, and a
+  looser account-wide per-identifier limiter (50 / 1 h) that bounds distributed
+  guessing across many IPs. SDK defaults cover the other OAuth endpoints.
 - `trust proxy` configurable (`MCP_TRUST_PROXY`, default `0`); set it to the real
   hop count only behind a trusted proxy (e.g. Traefik). Defaulting to `0` stops a
   client that reaches the container port directly from spoofing `X-Forwarded-For`

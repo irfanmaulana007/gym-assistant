@@ -154,11 +154,9 @@ export class GymOAuthProvider implements OAuthServerProvider {
     client: Omit<OAuthClientInformationFull, 'client_id' | 'client_id_issued_at'>,
   ): OAuthClientInformationFull {
     const redirectUris = client.redirect_uris.map(String)
-    if (this.allowedRedirectUris.size > 0) {
+    if (!this.redirectUrisAllowed(redirectUris)) {
       const rejected = redirectUris.find((uri) => !this.allowedRedirectUris.has(uri))
-      if (rejected) {
-        throw new InvalidClientMetadataError(`redirect_uri is not allowed: ${rejected}`)
-      }
+      throw new InvalidClientMetadataError(`redirect_uri is not allowed: ${rejected}`)
     }
     const iat = this.sealer.nowSeconds()
     const payload: ClientPayload = {
@@ -176,7 +174,18 @@ export class GymOAuthProvider implements OAuthServerProvider {
 
   private getClient(clientId: string): OAuthClientInformationFull | undefined {
     const opened = this.sealer.open<ClientPayload>('client', clientId)
-    return opened ? this.toClientInfo(clientId, opened.data) : undefined
+    if (!opened) return undefined
+    // Enforce the allowlist on every open, not just at registration: client ids
+    // are stateless sealed blobs that never expire, so a client registered
+    // before the allowlist was enabled would otherwise still drive /authorize.
+    if (!this.redirectUrisAllowed(opened.data.redirect_uris)) return undefined
+    return this.toClientInfo(clientId, opened.data)
+  }
+
+  /** Whether every redirect URI is permitted (always true when no allowlist). */
+  private redirectUrisAllowed(uris: string[]): boolean {
+    if (this.allowedRedirectUris.size === 0) return true
+    return uris.every((uri) => this.allowedRedirectUris.has(uri))
   }
 
   private toClientInfo(clientId: string, p: ClientPayload): OAuthClientInformationFull {

@@ -292,54 +292,87 @@ describe('remote MCP over Streamable HTTP + OAuth', () => {
   })
 })
 
-// A second app instance with rate limits ENABLED, to exercise the login limiter
-// (the main suite disables them). Own server + port; shares the mock API.
+// App instances with rate limits ENABLED, to exercise the login limiters (the
+// main suite disables them). Each test gets its OWN app so the in-memory limiter
+// stores start empty — express-rate-limit keys on IP, so sharing one app would
+// bleed counts (and the per-IP backstop) between tests.
 describe('remote MCP login rate limiting', () => {
-  let rl: Server
-  let rlBase: string
-
-  beforeAll(async () => {
-    rl = createServer()
-    await new Promise<void>((r) => rl.listen(0, '127.0.0.1', r))
-    rlBase = `http://127.0.0.1:${(rl.address() as AddressInfo).port}`
+  async function startApp(): Promise<{ server: Server; base: string }> {
+    const server = createServer()
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
     const app = createHttpApp({
       baseUrl: apiUrl,
       timeoutMs: 5000,
-      publicUrl: rlBase,
+      publicUrl: base,
       oauthSecret: randomBytes(32).toString('hex'),
       port: 0,
       trustProxy: 0,
       allowedRedirectUris: [],
     })
-    rl.on('request', app)
-  })
+    server.on('request', app)
+    return { server, base }
+  }
 
-  afterAll(async () => {
-    await new Promise<void>((r) => rl.close(() => r()))
-  })
-
-  it('throttles repeated failed logins per identifier and does not count successes (F7/F8)', async () => {
-    const client = await register(rlBase)
-    const { html } = await openLoginPage(client.client_id, 'a'.repeat(43), rlBase)
+  /** A reusable POST /oauth/login attempt bound to one app + login_token. */
+  async function attempterFor(base: string): Promise<(id: string, pw: string) => Promise<Response>> {
+    const client = await register(base)
+    const { html } = await openLoginPage(client.client_id, 'a'.repeat(43), base)
     const token = loginTokenOf(html)
-    const attempt = (identifier: string, password: string) =>
-      fetch(`${rlBase}/oauth/login`, {
+    return (identifier: string, password: string) =>
+      fetch(`${base}/oauth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: form({ login_token: token, identifier, password }),
         redirect: 'manual',
       })
+  }
 
-    // 10 failures are allowed, the 11th is throttled with a friendly 429 page.
-    let status = 0
-    for (let i = 0; i < 11; i++) status = (await attempt('victim', 'wrong')).status
-    expect(status).toBe(429)
-    const throttled = await attempt('victim', 'wrong')
-    expect(throttled.status).toBe(429)
-    expect(await throttled.text()).toContain('Too many attempts')
+  it('throttles repeated failed logins per identifier with a friendly 429 (F8)', async () => {
+    const { server, base } = await startApp()
+    try {
+      const attempt = await attempterFor(base)
+      // 10 failures are allowed, the 11th is throttled with a friendly 429 page.
+      let status = 0
+      for (let i = 0; i < 11; i++) status = (await attempt('victim', 'wrong')).status
+      expect(status).toBe(429)
+      const throttled = await attempt('victim', 'wrong')
+      expect(throttled.status).toBe(429)
+      expect(await throttled.text()).toContain('Too many attempts')
+      // A different identifier is a different (identifier, IP) bucket.
+      expect((await attempt('lifter', 'pw')).status).toBe(302)
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()))
+    }
+  })
 
-    // A different identifier is a different bucket, and a correct login (302) is
-    // not counted against it.
-    expect((await attempt('lifter', 'pw')).status).toBe(302)
+  it('does not count a successful login against the per-identifier limit (F7)', async () => {
+    const { server, base } = await startApp()
+    try {
+      const attempt = await attempterFor(base)
+      // 9 failures for `lifter`, then a success (302), then more failures. If the
+      // success were counted, the 10th *failure* would be the 11th request in the
+      // bucket and get a 429; skipSuccessfulRequests means it is still a 401.
+      for (let i = 0; i < 9; i++) expect((await attempt('lifter', 'wrong')).status).toBe(401)
+      expect((await attempt('lifter', 'pw')).status).toBe(302)
+      expect((await attempt('lifter', 'wrong')).status).toBe(401) // 10th failure, not throttled
+      expect((await attempt('lifter', 'wrong')).status).toBe(429) // 11th failure, throttled
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()))
+    }
+  })
+
+  it('trips the per-IP backstop limiter across distinct identifiers (F7)', async () => {
+    const { server, base } = await startApp()
+    try {
+      const attempt = await attempterFor(base)
+      // Distinct identifiers each have their own (identifier, IP) bucket, so only
+      // the per-IP backstop (20 / 15 min) can stop them — the 21st request trips it.
+      let status = 0
+      for (let i = 0; i < 21; i++) status = (await attempt(`u${i}`, 'wrong')).status
+      expect(status).toBe(429)
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()))
+    }
   })
 })

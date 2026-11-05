@@ -66,17 +66,32 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
   )
 
   const passthrough = (_req: Request, _res: Response, next: () => void) => next()
+  const loginIdentifier = (req: Request): string => {
+    const raw = (req.body as Record<string, unknown> | undefined)?.identifier
+    return typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  }
+  // Re-render the sign-in page with a friendly message instead of the bare
+  // express-rate-limit text body, keeping the flow usable when a limiter trips.
+  const throttledPage = (req: Request, res: Response) => {
+    const token = (req.body as Record<string, unknown> | undefined)?.login_token
+    sendLoginPage(
+      res,
+      429,
+      renderLoginPage({
+        loginToken: typeof token === 'string' ? token : '',
+        error: 'Too many attempts. Wait a few minutes and try again.',
+      }),
+    )
+  }
+
   // Per-IP backstop (runs before the body is parsed). With `trust proxy` 0 this
   // keys on the real socket address, which cannot be spoofed via X-Forwarded-For.
   const loginLimiter = opts.disableRateLimits
     ? passthrough
     : rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false })
-  // Per-identifier limiter (runs after the body is parsed). Throttles password
-  // guessing against a single account; only failed attempts count, so a user who
-  // signs in is never penalised. Keyed by identifier *and* source IP so one actor
-  // cannot lock a victim out of connecting by guessing from a single IP — the
-  // strict per-(identifier,IP) cap plus the per-IP backstop bound real abuse,
-  // while a victim's own IP keeps its own untouched bucket.
+  // Strict per-(identifier, IP) limiter: throttles guessing against one account
+  // from one source without letting an attacker's IP exhaust the victim's own
+  // bucket (so it can't be used to lock a user out of connecting).
   const identifierLimiter = opts.disableRateLimits
     ? passthrough
     : rateLimit({
@@ -85,24 +100,25 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
         skipSuccessfulRequests: true,
         standardHeaders: true,
         legacyHeaders: false,
+        keyGenerator: (req: Request) => `${loginIdentifier(req)}|${ipKeyGenerator(req.ip ?? '')}`,
+        handler: throttledPage,
+      })
+  // Looser account-wide limiter: bounds distributed guessing across many IPs
+  // against one account. Set high enough that casual lockout is impractical, but
+  // low enough to cap a botnet (the Go API has no login throttle of its own).
+  const accountLimiter = opts.disableRateLimits
+    ? passthrough
+    : rateLimit({
+        windowMs: 60 * 60 * 1000,
+        limit: 50,
+        skipSuccessfulRequests: true,
+        standardHeaders: false,
+        legacyHeaders: false,
         keyGenerator: (req: Request) => {
-          const raw = (req.body as Record<string, unknown> | undefined)?.identifier
-          const id = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
-          return `${id}|${ipKeyGenerator(req.ip ?? '')}`
+          const id = loginIdentifier(req)
+          return id ? `acct:${id}` : `ip:${ipKeyGenerator(req.ip ?? '')}`
         },
-        // Re-render the sign-in page with a friendly message instead of the bare
-        // express-rate-limit text body, keeping the flow usable when it trips.
-        handler: (req: Request, res: Response) => {
-          const token = (req.body as Record<string, unknown> | undefined)?.login_token
-          sendLoginPage(
-            res,
-            429,
-            renderLoginPage({
-              loginToken: typeof token === 'string' ? token : '',
-              error: 'Too many attempts. Wait a few minutes and try again.',
-            }),
-          )
-        },
+        handler: throttledPage,
       })
 
   app.post(
@@ -110,6 +126,7 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
     loginLimiter,
     express.urlencoded({ extended: false, limit: '16kb' }),
     identifierLimiter,
+    accountLimiter,
     async (req: Request, res: Response) => {
       const body = (req.body ?? {}) as Record<string, unknown>
       const str = (v: unknown) => (typeof v === 'string' ? v : '')
