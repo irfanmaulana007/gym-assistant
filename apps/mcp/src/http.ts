@@ -9,14 +9,14 @@
  */
 
 import express, { type Express, type Request, type Response } from 'express'
-import { rateLimit } from 'express-rate-limit'
+import { rateLimit, ipKeyGenerator } from 'express-rate-limit'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from '@modelcontextprotocol/sdk/server/auth/router.js'
 import { requireBearerAuth } from '@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js'
 import type { HttpConfig } from './config.js'
 import { createServer } from './server.js'
 import { ApiAuth } from './oauth/apiAuth.js'
-import { GymOAuthProvider, sendLoginPage } from './oauth/provider.js'
+import { GymOAuthProvider, SUPPORTED_SCOPES, sendLoginPage } from './oauth/provider.js'
 import { Sealer } from './oauth/seal.js'
 
 export interface HttpAppOptions {
@@ -50,6 +50,7 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
       issuerUrl,
       resourceServerUrl: mcpUrl,
       resourceName: 'Gym Assistant (read-only)',
+      scopesSupported: SUPPORTED_SCOPES,
       // Stateless client ids never expire; rotating MCP_OAUTH_SECRET revokes them.
       clientRegistrationOptions: { clientSecretExpirySeconds: 0, ...(limit === false ? { rateLimit: false } : {}) },
       ...(limit === false
@@ -62,14 +63,35 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
     }),
   )
 
+  const passthrough = (_req: Request, _res: Response, next: () => void) => next()
+  // Per-IP backstop (runs before the body is parsed). With `trust proxy` 0 this
+  // keys on the real socket address, which cannot be spoofed via X-Forwarded-For.
   const loginLimiter = opts.disableRateLimits
-    ? (_req: Request, _res: Response, next: () => void) => next()
+    ? passthrough
     : rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false })
+  // Per-identifier limiter (runs after the body is parsed). Throttles password
+  // guessing against a single account regardless of source IP; only failed
+  // attempts count, so a legitimate user who signs in is never penalised.
+  const identifierLimiter = opts.disableRateLimits
+    ? passthrough
+    : rateLimit({
+        windowMs: 15 * 60 * 1000,
+        limit: 10,
+        skipSuccessfulRequests: true,
+        standardHeaders: true,
+        legacyHeaders: false,
+        keyGenerator: (req: Request) => {
+          const raw = (req.body as Record<string, unknown> | undefined)?.identifier
+          const id = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+          return id ? `id:${id}` : `ip:${ipKeyGenerator(req.ip ?? '')}`
+        },
+      })
 
   app.post(
     '/oauth/login',
     loginLimiter,
     express.urlencoded({ extended: false, limit: '16kb' }),
+    identifierLimiter,
     async (req: Request, res: Response) => {
       const body = (req.body ?? {}) as Record<string, unknown>
       const str = (v: unknown) => (typeof v === 'string' ? v : '')

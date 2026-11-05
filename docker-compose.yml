@@ -80,7 +80,7 @@ services:
       MCP_OAUTH_SECRET: ${MCP_OAUTH_SECRET:-}
       # Must be https unless loopback, so point at the public API origin.
       GYM_API_BASE_URL: ${GYM_API_BASE_URL:-https://api-gym.irfanmaulana007.com}
-      MCP_TRUST_PROXY: ${MCP_TRUST_PROXY:-1}
+      MCP_TRUST_PROXY: ${MCP_TRUST_PROXY:-0}
     ports:
       - "${MCP_PORT:-8082}:3000"
 

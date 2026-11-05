@@ -33,6 +33,14 @@ export const CODE_TTL_SECONDS = 5 * 60
 export const REFRESH_TTL_SECONDS = 30 * 24 * 60 * 60
 /** Used only if the API JWT carries no readable `exp`. */
 const FALLBACK_ACCESS_TTL_SECONDS = 15 * 60
+/** Grace window after a refresh token is first redeemed, during which a replay
+ *  (a retried or concurrent request) is served the already-rotated pair instead
+ *  of re-forwarding the spent API refresh token — see `exchangeRefreshToken`. */
+const REFRESH_GRACE_SECONDS = 60
+
+/** Scopes this server understands and can grant. Anything else a client asks
+ *  for is dropped rather than echoed back as if granted. */
+export const SUPPORTED_SCOPES = ['read']
 
 /** Client metadata kept inside the sealed client_id (kept small on purpose). */
 interface ClientPayload {
@@ -77,6 +85,7 @@ interface RefreshPayload {
   sc: string[]
   rs: string
   rt: string
+  j: string // jti — single-use with a short grace window (see exchangeRefreshToken)
 }
 
 export type LoginResult =
@@ -101,6 +110,18 @@ export class GymOAuthProvider implements OAuthServerProvider {
   private readonly resource: string
   /** jti → expiry, so a (stateless) code can only be redeemed once. */
   private readonly usedCodes = new Map<string, number>()
+  /** Refresh-token jti → expiry of the "already redeemed" record. Once a refresh
+   *  token has been forwarded to the API, its jti is remembered so a later replay
+   *  is rejected locally rather than re-forwarded (re-forwarding a spent API
+   *  token trips the API's reuse detection and logs the user out everywhere). */
+  private readonly usedRefresh = new Map<string, number>()
+  /** Refresh-token jti → the rotated pair, cached for a short grace window so a
+   *  retried or concurrent refresh gets the same new tokens without a second API
+   *  call. */
+  private readonly refreshResults = new Map<string, { exp: number; tokens: OAuthTokens }>()
+  /** Refresh-token jti → in-flight refresh, so concurrent uses of one token share
+   *  a single API call instead of each forwarding the same (single-use) token. */
+  private readonly refreshInFlight = new Map<string, Promise<OAuthTokens>>()
 
   readonly clientsStore: OAuthRegisteredClientsStore
 
@@ -172,11 +193,18 @@ export class GymOAuthProvider implements OAuthServerProvider {
       r: params.redirectUri,
       ch: params.codeChallenge,
       s: params.state,
-      sc: params.scopes ?? [],
+      // Only grant scopes we actually understand; silently dropping the rest
+      // keeps the issued tokens from claiming access that was never granted.
+      sc: (params.scopes ?? []).filter((s) => SUPPORTED_SCOPES.includes(s)),
       rs: this.resource,
     }
     const loginToken = this.sealer.seal('login', state, LOGIN_STATE_TTL_SECONDS)
-    sendLoginPage(res, 200, renderLoginPage({ loginToken, clientName: client.client_name }), params.redirectUri)
+    sendLoginPage(
+      res,
+      200,
+      renderLoginPage({ loginToken, clientName: client.client_name, redirectUri: params.redirectUri }),
+      params.redirectUri,
+    )
   }
 
   /** Handle the login form POST: sign in at the API, then redirect back to
@@ -200,7 +228,13 @@ export class GymOAuthProvider implements OAuthServerProvider {
     const retry = (status: number, error: string): LoginResult => ({
       kind: 'page',
       status,
-      html: renderLoginPage({ loginToken, clientName: client.client_name, identifier, error }),
+      html: renderLoginPage({
+        loginToken,
+        clientName: client.client_name,
+        redirectUri: state.r,
+        identifier,
+        error,
+      }),
       redirectUri: state.r,
     })
 
@@ -291,6 +325,37 @@ export class GymOAuthProvider implements OAuthServerProvider {
     if (resource && !sameResource(resource.href, rt.rs)) {
       throw new InvalidTargetError('resource does not match the original grant')
     }
+
+    // The API single-uses refresh tokens and, on reuse of a rotated one, revokes
+    // *every* session the user has (web app included). Since our sealed refresh
+    // token is a stateless blob that can be presented again and again (retry,
+    // double refresh, a stale copy in a client cache), we must forward the
+    // embedded API token to `/auth/refresh` at most once per jti.
+    this.pruneRefresh()
+    const cached = this.refreshResults.get(rt.j)
+    if (cached) return cached.tokens // retry within the grace window → same rotated pair
+    const inFlight = this.refreshInFlight.get(rt.j)
+    if (inFlight) return inFlight // concurrent refresh → share the one API call
+    if (this.usedRefresh.has(rt.j)) {
+      // Already rotated once and past the grace window — reject locally instead
+      // of re-forwarding the now-spent API token (which would trip revoke-all).
+      throw new InvalidGrantError('Refresh token already used; sign in again')
+    }
+
+    const promise = this.rotateApiTokens(rt)
+    this.refreshInFlight.set(rt.j, promise)
+    try {
+      const tokens = await promise
+      const now = this.sealer.nowSeconds()
+      this.usedRefresh.set(rt.j, now + REFRESH_TTL_SECONDS)
+      this.refreshResults.set(rt.j, { exp: now + REFRESH_GRACE_SECONDS, tokens })
+      return tokens
+    } finally {
+      this.refreshInFlight.delete(rt.j)
+    }
+  }
+
+  private async rotateApiTokens(rt: RefreshPayload): Promise<OAuthTokens> {
     let tokens: ApiTokens
     try {
       tokens = await this.apiAuth.refresh(rt.rt)
@@ -304,11 +369,18 @@ export class GymOAuthProvider implements OAuthServerProvider {
     return this.issueTokens(rt.c, rt.sc, rt.rs, tokens)
   }
 
+  /** Drop expired entries from the refresh bookkeeping maps. */
+  private pruneRefresh(): void {
+    const now = this.sealer.nowSeconds()
+    for (const [id, exp] of this.usedRefresh) if (exp <= now) this.usedRefresh.delete(id)
+    for (const [id, { exp }] of this.refreshResults) if (exp <= now) this.refreshResults.delete(id)
+  }
+
   private issueTokens(clientId: string, scopes: string[], resource: string, api: ApiTokens): OAuthTokens {
     const now = this.sealer.nowSeconds()
     const accessExp = jwtExpiry(api.token) ?? now + FALLBACK_ACCESS_TTL_SECONDS
     const access: AccessPayload = { c: clientId, sc: scopes, rs: resource, at: api.token }
-    const refresh: RefreshPayload = { c: clientId, sc: scopes, rs: resource, rt: api.refresh_token }
+    const refresh: RefreshPayload = { c: clientId, sc: scopes, rs: resource, rt: api.refresh_token, j: randomUUID() }
     return {
       access_token: this.sealer.sealUntil('access', access, accessExp),
       token_type: 'bearer',

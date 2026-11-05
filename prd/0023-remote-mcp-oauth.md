@@ -96,18 +96,40 @@ replayed as another:
   opaque tokens that are useless against the API directly and bound to this
   MCP server's resource URL (audience check via `expectedResource`).
 - Refresh: unseal → API `POST /auth/refresh` (which rotates the API refresh
-  token) → seal the new pair. Bound to the client that obtained it.
+  token) → seal the new pair. Bound to the client that obtained it. Each refresh
+  token carries a `jti`; the embedded API token is forwarded to the API **at
+  most once** per `jti`. A retried or concurrent refresh within a 60 s grace
+  window is served the already-rotated pair, and a later replay is rejected
+  locally — so a replay never re-sends a spent API token (which would trip the
+  API's reuse detection and revoke every session the user has, web app included).
 - Rotating `MCP_OAUTH_SECRET` invalidates all clients and tokens (users simply
   reconnect). This is the revocation lever.
+- **Single replica.** The used-`jti` sets for authorization codes and refresh
+  tokens are in-memory, so single-use is only guaranteed within one process.
+  Deploy the `mcp` service as a single replica (the compose service is not
+  scaled); a restart clears the sets, leaving a brief window where an unexpired
+  code/refresh token could be redeemed again. Moving the sets to a shared store
+  (e.g. Redis) is the follow-up if the service is ever horizontally scaled.
 
 ### Hardening
 
 - `MCP_PUBLIC_URL` must be `https` (loopback http allowed for dev/tests);
-  `MCP_OAUTH_SECRET` must be ≥ 32 chars. Server refuses to start otherwise.
+  `MCP_OAUTH_SECRET` must be ≥ 32 chars and not a `change-me` placeholder.
+  Server refuses to start otherwise.
+- Consent page shows the client name as **unverified** (it comes from open DCR)
+  and the redirect host the code will be sent to, so a phishing client with a
+  spoofed name is visible to the user.
+- Scopes: only `read` is advertised/granted; unknown requested scopes are dropped
+  rather than echoed back as granted.
 - Login page: `Content-Security-Policy` (no scripts, `form-action 'self'`),
   `X-Frame-Options: DENY`, `Cache-Control: no-store`, HTML-escaped output.
-- Rate limits: SDK defaults on OAuth endpoints, plus a login-attempt limiter.
-- `trust proxy` configurable (`MCP_TRUST_PROXY`, default `1`, for Traefik).
+- Rate limits: SDK defaults on OAuth endpoints, a per-IP login limiter, and a
+  per-identifier limiter (failed attempts only) so password guessing against one
+  account is throttled regardless of source IP.
+- `trust proxy` configurable (`MCP_TRUST_PROXY`, default `0`); set it to the real
+  hop count only behind a trusted proxy (e.g. Traefik). Defaulting to `0` stops a
+  client that reaches the container port directly from spoofing `X-Forwarded-For`
+  to rotate the login rate-limit key.
 - Never log tokens or passwords.
 
 ### Configuration (HTTP mode)
@@ -119,7 +141,7 @@ replayed as another:
 | `PORT` | no | `3000` |
 | `GYM_API_BASE_URL` | no | production API |
 | `GYM_API_TIMEOUT_MS` | no | `15000` |
-| `MCP_TRUST_PROXY` | no | `1` |
+| `MCP_TRUST_PROXY` | no | `0` (set to the hop count behind a trusted proxy) |
 
 No `GYM_API_IDENTIFIER`/`PASSWORD` in HTTP mode — credentials come from each
 user's login.
@@ -156,9 +178,11 @@ user's login.
 
 ## Risks
 
-- The API's single-use refresh tokens: if a client retries a refresh with the
-  same token, the API's reuse detection revokes that user's sessions. This
-  matches every other API client; the user just reconnects.
+- The API's single-use refresh tokens: a replayed refresh (retry/concurrent)
+  would otherwise trip the API's reuse detection and revoke all the user's
+  sessions. The provider guards against this by forwarding each refresh token's
+  embedded API token at most once per `jti` (grace-window cache + local reject on
+  replay). The residual window is a process restart (see "Single replica").
 - The login page is a password form on a second domain; it is served only
   over https, posts only to itself, and forwards to the existing login
   endpoint (same rate limits apply at the API).

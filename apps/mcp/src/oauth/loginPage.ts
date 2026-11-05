@@ -18,13 +18,33 @@ export interface LoginPageOptions {
   loginToken: string
   /** Display name of the client asking for access (from DCR). */
   clientName?: string
+  /** Where the authorization code will be sent (the client's redirect_uri).
+   *  Shown so the user can see the destination and spot a phishing client. */
+  redirectUri?: string
   /** Pre-fill the identifier after a failed attempt. */
   identifier?: string
   error?: string
 }
 
+/** Host (and, for loopback, port) the code would be sent to, or undefined when
+ *  the redirect URI is missing/unparseable. */
+function redirectHost(redirectUri: string | undefined): string | undefined {
+  if (!redirectUri) return undefined
+  try {
+    return new URL(redirectUri).host
+  } catch {
+    return undefined
+  }
+}
+
 export function renderLoginPage(opts: LoginPageOptions): string {
+  // The client name comes from open dynamic registration, so it is attacker
+  // controllable — label it unverified and show the real redirect destination.
   const client = opts.clientName ? escapeHtml(opts.clientName) : 'An MCP client'
+  const host = redirectHost(opts.redirectUri)
+  const destination = host
+    ? `<p class="dest">After you sign in, an access code is sent to <strong>${escapeHtml(host)}</strong>. Only continue if you recognise it.</p>`
+    : ''
   const error = opts.error
     ? `<p class="error" role="alert">${escapeHtml(opts.error)}</p>`
     : ''
@@ -48,13 +68,16 @@ export function renderLoginPage(opts: LoginPageOptions): string {
   input { width:100%; height:44px; padding:0 12px; border:1px solid var(--border); border-radius:10px; background:transparent; color:inherit; font-size:16px; }
   button { width:100%; height:48px; margin-top:20px; border:0; border-radius:12px; background:var(--accent); color:#fff; font-size:17px; font-weight:600; }
   .error { color:var(--err); font-size:14px; margin:0 0 8px; }
+  .muted { color:var(--muted); font-weight:400; }
+  .dest { color:var(--muted); font-size:13px; margin:0 0 16px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; }
   .note { color:var(--muted); font-size:12px; margin-top:16px; }
 </style>
 </head>
 <body>
 <main>
   <h1>Gym Assistant</h1>
-  <p class="sub">${client} wants <strong>read-only</strong> access to your profile and workout history.</p>
+  <p class="sub">${client} <span class="muted">(unverified)</span> wants <strong>read-only</strong> access to your profile and workout history.</p>
+  ${destination}
   ${error}
   <form method="post" action="/oauth/login">
     <input type="hidden" name="login_token" value="${escapeHtml(opts.loginToken)}">

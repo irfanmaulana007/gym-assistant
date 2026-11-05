@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { Sealer } from '@/oauth/seal'
 import { ApiAuth, jwtExpiry } from '@/oauth/apiAuth'
-import { GymOAuthProvider } from '@/oauth/provider'
+import { GymOAuthProvider, LOGIN_STATE_TTL_SECONDS } from '@/oauth/provider'
 import { escapeHtml, renderLoginPage } from '@/oauth/loginPage'
 import { loadHttpConfig } from '@/config'
 import { GymApiError } from '@/client'
@@ -52,7 +52,7 @@ describe('loadHttpConfig', () => {
       publicUrl: 'https://mcp.example.test',
       baseUrl: 'https://api-gym.irfanmaulana007.com',
       port: 3000,
-      trustProxy: 1,
+      trustProxy: 0,
     })
   })
 
@@ -67,6 +67,12 @@ describe('loadHttpConfig', () => {
     expect(() => loadHttpConfig({ ...base, MCP_OAUTH_SECRET: 'short' } as NodeJS.ProcessEnv)).toThrow(
       /MCP_OAUTH_SECRET/,
     )
+  })
+
+  it('rejects the long-but-placeholder change-me secret (F4)', () => {
+    expect(() =>
+      loadHttpConfig({ ...base, MCP_OAUTH_SECRET: 'change-me-to-a-long-random-secret' } as NodeJS.ProcessEnv),
+    ).toThrow(/placeholder/)
   })
 
   it('allows plain http on loopback for local dev', () => {
@@ -86,6 +92,16 @@ describe('jwtExpiry / escapeHtml', () => {
     const html = renderLoginPage({ loginToken: 't', clientName: '<script>x</script>' })
     expect(html).not.toContain('<script>x')
     expect(html).toContain('&lt;script&gt;')
+  })
+
+  it('shows the redirect host and marks the DCR client name unverified (F2)', () => {
+    const html = renderLoginPage({
+      loginToken: 't',
+      clientName: 'Claude',
+      redirectUri: 'https://evil.example/cb',
+    })
+    expect(html).toContain('evil.example')
+    expect(html).toContain('unverified')
   })
 })
 
@@ -231,5 +247,112 @@ describe('GymOAuthProvider', () => {
     await expect(p.verifyAccessToken(tokens.refresh_token!)).rejects.toThrow(/Invalid or expired/)
     now += 3601
     await expect(p.verifyAccessToken(tokens.access_token)).rejects.toThrow(/Invalid or expired/)
+  })
+
+  // ---- F1: a replayed refresh must never re-forward the spent API token -----
+
+  /** A mock API that rotates refresh tokens and — like the real API — revokes
+   *  everything the moment an already-rotated token is presented again. */
+  function refreshMock() {
+    const state = { current: 'api-rt-1', calls: 0, revokedAll: false }
+    const refresh = vi.fn(async (token: string) => {
+      state.calls++
+      if (token !== state.current) {
+        state.revokedAll = true
+        throw new GymApiError(401, 'refresh token reused')
+      }
+      state.current = `api-rt-${state.calls + 1}`
+      return { token: fakeJwt(1_000_000 + 7200), refresh_token: state.current }
+    })
+    return { state, refresh }
+  }
+
+  it('serves a retried refresh from cache without re-forwarding or revoking all (F1)', async () => {
+    const { state, refresh } = refreshMock()
+    const p = makeProvider({ login: vi.fn().mockResolvedValue(apiTokens), refresh })
+    const client = await register(p)
+    const first = await p.exchangeAuthorizationCode(client, await obtainCode(p, client))
+
+    const a = await p.exchangeRefreshToken(client, first.refresh_token!)
+    const b = await p.exchangeRefreshToken(client, first.refresh_token!) // replay (lost response)
+    expect(state.calls).toBe(1) // forwarded to the API exactly once
+    expect(b.access_token).toBe(a.access_token)
+    expect(b.refresh_token).toBe(a.refresh_token)
+    expect(state.revokedAll).toBe(false)
+  })
+
+  it('shares one API call across concurrent refreshes of the same token (F1)', async () => {
+    const { state, refresh } = refreshMock()
+    const p = makeProvider({ login: vi.fn().mockResolvedValue(apiTokens), refresh })
+    const client = await register(p)
+    const first = await p.exchangeAuthorizationCode(client, await obtainCode(p, client))
+    const [x, y] = await Promise.all([
+      p.exchangeRefreshToken(client, first.refresh_token!),
+      p.exchangeRefreshToken(client, first.refresh_token!),
+    ])
+    expect(state.calls).toBe(1)
+    expect(state.revokedAll).toBe(false)
+    expect(x.refresh_token).toBe(y.refresh_token)
+  })
+
+  it('rejects a replayed refresh after the grace window without calling the API (F1)', async () => {
+    let now = 1_000_000
+    const { state, refresh } = refreshMock()
+    const p = makeProvider({ login: vi.fn().mockResolvedValue(apiTokens), refresh }, () => now)
+    const client = await register(p)
+    const first = await p.exchangeAuthorizationCode(client, await obtainCode(p, client))
+    await p.exchangeRefreshToken(client, first.refresh_token!)
+    now += 61 // past the 60s grace window
+    await expect(p.exchangeRefreshToken(client, first.refresh_token!)).rejects.toThrow(/already used/)
+    expect(state.calls).toBe(1) // never re-forwarded
+    expect(state.revokedAll).toBe(false)
+  })
+
+  // ---- F6 / F7: scopes, revocation, login-state edge cases ------------------
+
+  it('grants only supported scopes and drops unknown ones (F6)', async () => {
+    const p = makeProvider({ login: vi.fn().mockResolvedValue(apiTokens) })
+    const client = await register(p)
+    let html = ''
+    const res = { status: () => res, set: () => res, send: (h: string) => ((html = h), res) }
+    await p.authorize(
+      client,
+      { redirectUri: client.redirect_uris[0] as string, codeChallenge: 'c', scopes: ['read', 'write', 'admin'] },
+      res as never,
+    )
+    const loginToken = /name="login_token" value="([^"]+)"/.exec(html)![1]
+    const r = await p.completeLogin(loginToken, 'lifter', 'pw')
+    const code = new URL((r as { location: string }).location).searchParams.get('code')!
+    const tokens = await p.exchangeAuthorizationCode(client, code)
+    expect(tokens.scope).toBe('read')
+    expect((await p.verifyAccessToken(tokens.access_token)).scopes).toEqual(['read'])
+  })
+
+  it('revokes by logging the API session out, and no-ops for a foreign or invalid token (F7)', async () => {
+    const logout = vi.fn().mockResolvedValue(undefined)
+    const p = makeProvider({ login: vi.fn().mockResolvedValue(apiTokens), logout })
+    const client = await register(p)
+    const tokens = await p.exchangeAuthorizationCode(client, await obtainCode(p, client))
+    await p.revokeToken(client, { token: tokens.refresh_token! })
+    expect(logout).toHaveBeenCalledWith('api-rt-1')
+    logout.mockClear()
+    const other = await register(p)
+    await p.revokeToken(other, { token: tokens.refresh_token! }) // different client → no-op
+    await p.revokeToken(client, { token: 'garbage' }) // not a refresh token → no-op
+    expect(logout).not.toHaveBeenCalled()
+  })
+
+  it('rejects an expired login link at completeLogin (F7)', async () => {
+    let now = 1_000_000
+    const p = makeProvider({ login: vi.fn().mockResolvedValue(apiTokens) }, () => now)
+    const client = await register(p)
+    let html = ''
+    const res = { status: () => res, set: () => res, send: (h: string) => ((html = h), res) }
+    await p.authorize(client, { redirectUri: client.redirect_uris[0] as string, codeChallenge: 'c' }, res as never)
+    const loginToken = /name="login_token" value="([^"]+)"/.exec(html)![1]
+    now += LOGIN_STATE_TTL_SECONDS + 1
+    const expired = await p.completeLogin(loginToken, 'lifter', 'pw')
+    expect(expired).toMatchObject({ kind: 'page', status: 400 })
+    expect((expired as { html: string }).html).toContain('expired')
   })
 })

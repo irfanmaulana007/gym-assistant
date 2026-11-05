@@ -23,6 +23,8 @@ let apiUrl: string
 let mcpBase: string
 const validApiTokens = new Set<string>()
 let currentRefresh = 'rt-1'
+const spentRefresh = new Set<string>()
+let apiRevokedAll = false
 const seenApiAuth: string[] = []
 
 function send(res: ServerResponse, status: number, body?: unknown): void {
@@ -49,9 +51,17 @@ beforeAll(async () => {
     }
     if (req.method === 'POST' && url.pathname === '/api/v1/auth/refresh') {
       const body = await readJson(req)
-      if (body.refresh_token !== currentRefresh)
+      if (body.refresh_token !== currentRefresh) {
+        // Model the real API: presenting an already-rotated token is treated as
+        // theft and revokes every session the user has.
+        if (spentRefresh.has(body.refresh_token)) {
+          apiRevokedAll = true
+          validApiTokens.clear()
+        }
         return send(res, 401, { error: { code: 'unauthorized', message: 'refresh token reused' } })
-      currentRefresh = `rt-${Date.now()}`
+      }
+      spentRefresh.add(currentRefresh)
+      currentRefresh = `rt-${spentRefresh.size}`
       const token = jwt('refresh')
       validApiTokens.add(token)
       return send(res, 200, { token, refresh_token: currentRefresh, user: PROFILE })
@@ -234,6 +244,36 @@ describe('remote MCP over Streamable HTTP + OAuth', () => {
     expect(refreshRes.status).toBe(200)
     const refreshed = (await refreshRes.json()) as { access_token: string }
     expect(await callProfile(refreshed.access_token)).toContain('Test Lifter')
+  })
+
+  it('does not log the user out when the same refresh token is replayed (F1)', async () => {
+    const { client, tokens } = await authorizeAndGetTokens()
+    const refresh = (rt: string) =>
+      fetch(`${mcpBase}/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form({
+          grant_type: 'refresh_token',
+          refresh_token: rt,
+          client_id: client.client_id,
+          client_secret: client.client_secret,
+        }),
+      })
+
+    const firstRes = await refresh(tokens.refresh_token)
+    expect(firstRes.status).toBe(200)
+    const first = (await firstRes.json()) as { access_token: string; refresh_token: string }
+
+    // Replay the ORIGINAL refresh token (a retry / lost response). The provider
+    // must serve the rotated pair from cache and never re-forward the now-spent
+    // API token — so the API's revoke-all is never triggered.
+    const replayRes = await refresh(tokens.refresh_token)
+    expect(replayRes.status).toBe(200)
+    const replay = (await replayRes.json()) as { refresh_token: string }
+    expect(replay.refresh_token).toBe(first.refresh_token)
+    expect(apiRevokedAll).toBe(false)
+    // The access token from the single real rotation still works.
+    expect(await callProfile(first.access_token)).toContain('Test Lifter')
   })
 
   it('rejects a tampered access token', async () => {

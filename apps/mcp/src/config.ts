@@ -149,6 +149,14 @@ export function loadHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfig
       `MCP_OAUTH_SECRET is required and must be at least ${MIN_SECRET_LENGTH} characters (try \`openssl rand -hex 32\`).`,
     )
   }
+  // Reject the documented placeholder so an operator who copies the example file
+  // without editing it fails loudly instead of running with a publicly-known key
+  // (which could decrypt every issued token).
+  if (/change[-_ ]?me/i.test(oauthSecret)) {
+    throw new Error(
+      'MCP_OAUTH_SECRET is still the example placeholder; set a real random secret (`openssl rand -hex 32`).',
+    )
+  }
 
   return {
     baseUrl: resolveBaseUrl(env.GYM_API_BASE_URL),
@@ -156,6 +164,10 @@ export function loadHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfig
     publicUrl: parsed.origin,
     oauthSecret,
     port: resolveInt('PORT', env.PORT, DEFAULT_PORT, 0),
-    trustProxy: resolveInt('MCP_TRUST_PROXY', env.MCP_TRUST_PROXY, 1, 0),
+    // Default to not trusting any proxy hop: when the container port is reachable
+    // directly, a trusted hop would let a client spoof `X-Forwarded-For` and mint
+    // a fresh rate-limit bucket per request. Set MCP_TRUST_PROXY to the real hop
+    // count only where a trusted proxy (e.g. Traefik) sits in front.
+    trustProxy: resolveInt('MCP_TRUST_PROXY', env.MCP_TRUST_PROXY, 0, 0),
   }
 }
