@@ -42,6 +42,7 @@ for the full document structure.
 | [0020](0020-cardio-session-logging.md) | Cardio Session Logging (distance target + distance/duration/pace/HR inputs) | Approved | api, web |
 | [0021](0021-muscle-groups-on-routine-detail.md) | Muscle Groups on the Workout-Day Detail (Before Start) | Approved | web |
 | [0022](0022-mcp-server.md) | Read-Only MCP Server for Workout Data | Approved | mcp |
+| [0023](0023-remote-mcp-oauth.md) | Remote MCP Server (Streamable HTTP + OAuth) | Draft | mcp |
 
 ## Status values
 

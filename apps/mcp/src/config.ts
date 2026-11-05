@@ -36,6 +36,14 @@ function clean(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined
 }
 
+/** Split a comma/whitespace-separated env value into a trimmed, non-empty list. */
+function parseList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean)
+}
+
 function isLoopbackHost(hostname: string): boolean {
   return (
     hostname === 'localhost' ||
@@ -46,22 +54,27 @@ function isLoopbackHost(hostname: string): boolean {
   )
 }
 
-function resolveBaseUrl(raw: string | undefined): string {
-  const value = (clean(raw) ?? DEFAULT_BASE_URL).replace(/\/+$/, '')
+/** Parse a URL and refuse plaintext http to a non-loopback host — credentials
+ *  or tokens would travel in the clear. Local dev over http://localhost is
+ *  allowed. Returns the value without trailing slashes. */
+function resolveSecureUrl(name: string, raw: string): string {
+  const value = raw.replace(/\/+$/, '')
   let parsed: URL
   try {
     parsed = new URL(value)
   } catch {
-    throw new Error(`GYM_API_BASE_URL is not a valid URL: ${value}`)
+    throw new Error(`${name} is not a valid URL: ${value}`)
   }
-  // Refuse plaintext to a non-loopback host — credentials would travel in the
-  // clear. Local dev over http://localhost is allowed.
   if (parsed.protocol !== 'https:' && !isLoopbackHost(parsed.hostname)) {
     throw new Error(
-      `GYM_API_BASE_URL must use https for a non-local host (got ${parsed.protocol}//${parsed.hostname}).`,
+      `${name} must use https for a non-local host (got ${parsed.protocol}//${parsed.hostname}).`,
     )
   }
   return value
+}
+
+function resolveBaseUrl(raw: string | undefined): string {
+  return resolveSecureUrl('GYM_API_BASE_URL', clean(raw) ?? DEFAULT_BASE_URL)
 }
 
 function resolveTimeout(raw: string | undefined): number {
@@ -93,4 +106,81 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
 
   return config
+}
+
+/**
+ * Configuration for the remote (Streamable HTTP + OAuth) mode — see PRD 0023.
+ *
+ * Unlike stdio mode there are no API credentials here: every request carries
+ * the API token of the user who signed in through the OAuth login page.
+ */
+export interface HttpConfig {
+  /** API base URL + timeout, shared with stdio mode. */
+  baseUrl: string
+  timeoutMs: number
+  /** Public origin of this server (OAuth issuer), e.g. https://mcp-gym.example.com */
+  publicUrl: string
+  /** Secret the sealed OAuth artifacts are keyed from (>= 32 chars). */
+  oauthSecret: string
+  port: number
+  /** Express `trust proxy` setting (hops). */
+  trustProxy: number
+  /** Exact redirect URIs a client may register via DCR. Empty = no restriction. */
+  allowedRedirectUris: string[]
+}
+
+const MIN_SECRET_LENGTH = 32
+const DEFAULT_PORT = 3000
+
+function resolveInt(name: string, raw: string | undefined, fallback: number, min: number): number {
+  const value = clean(raw)
+  if (!value) return fallback
+  const n = Number(value)
+  if (!Number.isInteger(n) || n < min) {
+    throw new Error(`${name} must be an integer >= ${min} (got ${value}).`)
+  }
+  return n
+}
+
+export function loadHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfig {
+  const publicRaw = clean(env.MCP_PUBLIC_URL)
+  if (!publicRaw) {
+    throw new Error('MCP_PUBLIC_URL is required (the public https origin of this server).')
+  }
+  const publicUrl = resolveSecureUrl('MCP_PUBLIC_URL', publicRaw)
+  const parsed = new URL(publicUrl)
+  if (parsed.pathname !== '/' && parsed.pathname !== '') {
+    throw new Error('MCP_PUBLIC_URL must be an origin without a path (e.g. https://mcp.example.com).')
+  }
+
+  const oauthSecret = clean(env.MCP_OAUTH_SECRET)
+  if (!oauthSecret || oauthSecret.length < MIN_SECRET_LENGTH) {
+    throw new Error(
+      `MCP_OAUTH_SECRET is required and must be at least ${MIN_SECRET_LENGTH} characters (try \`openssl rand -hex 32\`).`,
+    )
+  }
+  // Reject the documented placeholder so an operator who copies the example file
+  // without editing it fails loudly instead of running with a publicly-known key
+  // (which could decrypt every issued token).
+  if (/change[-_ ]?me/i.test(oauthSecret)) {
+    throw new Error(
+      'MCP_OAUTH_SECRET is still the example placeholder; set a real random secret (`openssl rand -hex 32`).',
+    )
+  }
+
+  return {
+    baseUrl: resolveBaseUrl(env.GYM_API_BASE_URL),
+    timeoutMs: resolveTimeout(env.GYM_API_TIMEOUT_MS),
+    publicUrl: parsed.origin,
+    oauthSecret,
+    port: resolveInt('PORT', env.PORT, DEFAULT_PORT, 0),
+    // Default to not trusting any proxy hop: when the container port is reachable
+    // directly, a trusted hop would let a client spoof `X-Forwarded-For` and mint
+    // a fresh rate-limit bucket per request. Set MCP_TRUST_PROXY to the real hop
+    // count only where a trusted proxy (e.g. Traefik) sits in front.
+    trustProxy: resolveInt('MCP_TRUST_PROXY', env.MCP_TRUST_PROXY, 0, 0),
+    // Optional hardening: restrict DCR to an exact set of redirect URIs. Unset =
+    // accept any (the consent page then shows the destination host instead).
+    allowedRedirectUris: parseList(env.MCP_ALLOWED_REDIRECT_URIS),
+  }
 }

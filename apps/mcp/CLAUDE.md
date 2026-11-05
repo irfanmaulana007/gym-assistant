@@ -1,9 +1,15 @@
 # apps/mcp — Gym Assistant MCP server
 
-Read-only MCP server (TypeScript + `@modelcontextprotocol/sdk`, stdio transport)
-that exposes the user's profile and workout history to MCP clients by calling
-the `apps/api` HTTP API with a JWT. See [`README.md`](README.md) for the tool
-list and setup.
+Read-only MCP server (TypeScript + `@modelcontextprotocol/sdk`) that exposes
+the user's profile and workout history to MCP clients by calling the `apps/api`
+HTTP API with a JWT. Two transports share one tool server (`createServer`):
+
+- **stdio** (`src/index.ts`) — local Claude Code, credentials from env.
+- **Streamable HTTP + OAuth** (`src/http-main.ts` → `src/http.ts`,
+  `src/oauth/*`) — remote connector; each request runs as the user who signed
+  in. See [PRD 0023](../../prd/0023-remote-mcp-oauth.md).
+
+See [`README.md`](README.md) for the tool list and setup.
 
 ## Conventions for this app
 
@@ -24,7 +30,13 @@ list and setup.
   (concurrent 401s share one in-flight refresh) so a single-use refresh token is
   never replayed — replaying one makes the API revoke every session. A raw
   refresh token is never accepted from the environment for the same reason. Keep
-  that the single place auth happens.
+  that the single place auth happens **for tool calls**.
+- **Remote-mode OAuth lives in `src/oauth/`.** `GymOAuthProvider` is the only
+  place that logs in / refreshes / logs out on a user's behalf (via `ApiAuth`).
+  Everything it issues is sealed by `Sealer` (`MCP_OAUTH_SECRET`) — keep it
+  stateless (no DB, no files); each sealed payload has a purpose that must be
+  checked on open. Never log tokens or passwords. The login page is
+  script-free and every interpolation goes through `escapeHtml`.
 
 ## Checks before done
 
