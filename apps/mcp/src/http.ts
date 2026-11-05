@@ -17,6 +17,7 @@ import type { HttpConfig } from './config.js'
 import { createServer } from './server.js'
 import { ApiAuth } from './oauth/apiAuth.js'
 import { GymOAuthProvider, SUPPORTED_SCOPES, sendLoginPage } from './oauth/provider.js'
+import { renderLoginPage } from './oauth/loginPage.js'
 import { Sealer } from './oauth/seal.js'
 
 export interface HttpAppOptions {
@@ -33,6 +34,7 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
     sealer: new Sealer(config.oauthSecret),
     apiAuth: new ApiAuth({ baseUrl: config.baseUrl, timeoutMs: config.timeoutMs, fetchImpl: opts.fetchImpl }),
     resourceUrl: mcpUrl,
+    allowedRedirectUris: config.allowedRedirectUris,
   })
 
   const app = express()
@@ -70,8 +72,11 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
     ? passthrough
     : rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: true, legacyHeaders: false })
   // Per-identifier limiter (runs after the body is parsed). Throttles password
-  // guessing against a single account regardless of source IP; only failed
-  // attempts count, so a legitimate user who signs in is never penalised.
+  // guessing against a single account; only failed attempts count, so a user who
+  // signs in is never penalised. Keyed by identifier *and* source IP so one actor
+  // cannot lock a victim out of connecting by guessing from a single IP — the
+  // strict per-(identifier,IP) cap plus the per-IP backstop bound real abuse,
+  // while a victim's own IP keeps its own untouched bucket.
   const identifierLimiter = opts.disableRateLimits
     ? passthrough
     : rateLimit({
@@ -83,7 +88,20 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
         keyGenerator: (req: Request) => {
           const raw = (req.body as Record<string, unknown> | undefined)?.identifier
           const id = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
-          return id ? `id:${id}` : `ip:${ipKeyGenerator(req.ip ?? '')}`
+          return `${id}|${ipKeyGenerator(req.ip ?? '')}`
+        },
+        // Re-render the sign-in page with a friendly message instead of the bare
+        // express-rate-limit text body, keeping the flow usable when it trips.
+        handler: (req: Request, res: Response) => {
+          const token = (req.body as Record<string, unknown> | undefined)?.login_token
+          sendLoginPage(
+            res,
+            429,
+            renderLoginPage({
+              loginToken: typeof token === 'string' ? token : '',
+              error: 'Too many attempts. Wait a few minutes and try again.',
+            }),
+          )
         },
       })
 

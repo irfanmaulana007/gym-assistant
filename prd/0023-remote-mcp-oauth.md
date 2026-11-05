@@ -102,6 +102,9 @@ replayed as another:
   window is served the already-rotated pair, and a later replay is rejected
   locally — so a replay never re-sends a spent API token (which would trip the
   API's reuse detection and revoke every session the user has, web app included).
+  If the API call fails ambiguously (timeout / 5xx), the `jti` is still marked
+  used so a retry forces a reconnect rather than risking a re-forward. The used
+  `jti` is remembered only until the sealed token's own expiry.
 - Rotating `MCP_OAUTH_SECRET` invalidates all clients and tokens (users simply
   reconnect). This is the revocation lever.
 - **Single replica.** The used-`jti` sets for authorization codes and refresh
@@ -117,15 +120,18 @@ replayed as another:
   `MCP_OAUTH_SECRET` must be ≥ 32 chars and not a `change-me` placeholder.
   Server refuses to start otherwise.
 - Consent page shows the client name as **unverified** (it comes from open DCR)
-  and the redirect host the code will be sent to, so a phishing client with a
-  spoofed name is visible to the user.
+  and the redirect destination the code will be sent to (host, or the full URI
+  when there is no host), so a phishing client with a spoofed name is visible to
+  the user. Operators can additionally restrict DCR to an exact allowlist via
+  `MCP_ALLOWED_REDIRECT_URIS` (unset = accept any).
 - Scopes: only `read` is advertised/granted; unknown requested scopes are dropped
   rather than echoed back as granted.
 - Login page: `Content-Security-Policy` (no scripts, `form-action 'self'`),
   `X-Frame-Options: DENY`, `Cache-Control: no-store`, HTML-escaped output.
 - Rate limits: SDK defaults on OAuth endpoints, a per-IP login limiter, and a
-  per-identifier limiter (failed attempts only) so password guessing against one
-  account is throttled regardless of source IP.
+  per-`(identifier, IP)` limiter (failed attempts only) so password guessing is
+  throttled without letting one actor lock a victim out of connecting; when it
+  trips it re-renders the sign-in page with a friendly message.
 - `trust proxy` configurable (`MCP_TRUST_PROXY`, default `0`); set it to the real
   hop count only behind a trusted proxy (e.g. Traefik). Defaulting to `0` stops a
   client that reaches the container port directly from spoofing `X-Forwarded-For`
@@ -142,6 +148,7 @@ replayed as another:
 | `GYM_API_BASE_URL` | no | production API |
 | `GYM_API_TIMEOUT_MS` | no | `15000` |
 | `MCP_TRUST_PROXY` | no | `0` (set to the hop count behind a trusted proxy) |
+| `MCP_ALLOWED_REDIRECT_URIS` | no | — (unset = accept any DCR redirect URI) |
 
 No `GYM_API_IDENTIFIER`/`PASSWORD` in HTTP mode — credentials come from each
 user's login.

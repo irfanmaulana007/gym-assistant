@@ -87,6 +87,7 @@ beforeAll(async () => {
       oauthSecret: randomBytes(32).toString('hex'),
       port: 0,
       trustProxy: 0,
+      allowedRedirectUris: [],
     },
     { disableRateLimits: true },
   )
@@ -102,8 +103,8 @@ afterAll(async () => {
 
 const form = (data: Record<string, string>) => new URLSearchParams(data).toString()
 
-async function register(): Promise<{ client_id: string; client_secret: string }> {
-  const res = await fetch(`${mcpBase}/register`, {
+async function register(base = mcpBase): Promise<{ client_id: string; client_secret: string }> {
+  const res = await fetch(`${base}/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ redirect_uris: [REDIRECT], client_name: 'Claude', token_endpoint_auth_method: 'client_secret_post' }),
@@ -112,7 +113,7 @@ async function register(): Promise<{ client_id: string; client_secret: string }>
   return res.json()
 }
 
-async function openLoginPage(clientId: string, challenge: string): Promise<{ html: string; res: Response }> {
+async function openLoginPage(clientId: string, challenge: string, base = mcpBase): Promise<{ html: string; res: Response }> {
   const q = new URLSearchParams({
     response_type: 'code',
     client_id: clientId,
@@ -120,9 +121,9 @@ async function openLoginPage(clientId: string, challenge: string): Promise<{ htm
     code_challenge: challenge,
     code_challenge_method: 'S256',
     state: 'xyz',
-    resource: `${mcpBase}/mcp`,
+    resource: `${base}/mcp`,
   })
-  const res = await fetch(`${mcpBase}/authorize?${q}`, { redirect: 'manual' })
+  const res = await fetch(`${base}/authorize?${q}`, { redirect: 'manual' })
   return { html: await res.text(), res }
 }
 
@@ -288,5 +289,57 @@ describe('remote MCP over Streamable HTTP + OAuth', () => {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
     })
     expect(res.status).toBe(401)
+  })
+})
+
+// A second app instance with rate limits ENABLED, to exercise the login limiter
+// (the main suite disables them). Own server + port; shares the mock API.
+describe('remote MCP login rate limiting', () => {
+  let rl: Server
+  let rlBase: string
+
+  beforeAll(async () => {
+    rl = createServer()
+    await new Promise<void>((r) => rl.listen(0, '127.0.0.1', r))
+    rlBase = `http://127.0.0.1:${(rl.address() as AddressInfo).port}`
+    const app = createHttpApp({
+      baseUrl: apiUrl,
+      timeoutMs: 5000,
+      publicUrl: rlBase,
+      oauthSecret: randomBytes(32).toString('hex'),
+      port: 0,
+      trustProxy: 0,
+      allowedRedirectUris: [],
+    })
+    rl.on('request', app)
+  })
+
+  afterAll(async () => {
+    await new Promise<void>((r) => rl.close(() => r()))
+  })
+
+  it('throttles repeated failed logins per identifier and does not count successes (F7/F8)', async () => {
+    const client = await register(rlBase)
+    const { html } = await openLoginPage(client.client_id, 'a'.repeat(43), rlBase)
+    const token = loginTokenOf(html)
+    const attempt = (identifier: string, password: string) =>
+      fetch(`${rlBase}/oauth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form({ login_token: token, identifier, password }),
+        redirect: 'manual',
+      })
+
+    // 10 failures are allowed, the 11th is throttled with a friendly 429 page.
+    let status = 0
+    for (let i = 0; i < 11; i++) status = (await attempt('victim', 'wrong')).status
+    expect(status).toBe(429)
+    const throttled = await attempt('victim', 'wrong')
+    expect(throttled.status).toBe(429)
+    expect(await throttled.text()).toContain('Too many attempts')
+
+    // A different identifier is a different bucket, and a correct login (302) is
+    // not counted against it.
+    expect((await attempt('lifter', 'pw')).status).toBe(302)
   })
 })

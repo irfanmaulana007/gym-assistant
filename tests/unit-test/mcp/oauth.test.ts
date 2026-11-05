@@ -75,6 +75,15 @@ describe('loadHttpConfig', () => {
     ).toThrow(/placeholder/)
   })
 
+  it('parses an optional DCR redirect-uri allowlist (F2)', () => {
+    const cfg = loadHttpConfig({
+      ...base,
+      MCP_ALLOWED_REDIRECT_URIS: 'https://a.test/cb, https://b.test/cb',
+    } as NodeJS.ProcessEnv)
+    expect(cfg.allowedRedirectUris).toEqual(['https://a.test/cb', 'https://b.test/cb'])
+    expect(loadHttpConfig(base as NodeJS.ProcessEnv).allowedRedirectUris).toEqual([])
+  })
+
   it('allows plain http on loopback for local dev', () => {
     const cfg = loadHttpConfig({ ...base, MCP_PUBLIC_URL: 'http://127.0.0.1:4000' } as NodeJS.ProcessEnv)
     expect(cfg.publicUrl).toBe('http://127.0.0.1:4000')
@@ -102,6 +111,11 @@ describe('jwtExpiry / escapeHtml', () => {
     })
     expect(html).toContain('evil.example')
     expect(html).toContain('unverified')
+  })
+
+  it('shows the full redirect URI when it has no host (F2)', () => {
+    const html = renderLoginPage({ loginToken: 't', redirectUri: 'com.example.app:/cb' })
+    expect(html).toContain('com.example.app:/cb')
   })
 })
 
@@ -295,6 +309,18 @@ describe('GymOAuthProvider', () => {
     expect(x.refresh_token).toBe(y.refresh_token)
   })
 
+  it('marks the jti used after an ambiguous API failure so a retry is not re-forwarded (F1)', async () => {
+    // The API may have rotated the token before a 5xx/timeout reached us; a retry
+    // must be rejected locally rather than re-forwarding the (possibly spent) token.
+    const refresh = vi.fn().mockRejectedValueOnce(new GymApiError(502, 'bad gateway'))
+    const p = makeProvider({ login: vi.fn().mockResolvedValue(apiTokens), refresh })
+    const client = await register(p)
+    const first = await p.exchangeAuthorizationCode(client, await obtainCode(p, client))
+    await expect(p.exchangeRefreshToken(client, first.refresh_token!)).rejects.toThrow(/bad gateway/)
+    await expect(p.exchangeRefreshToken(client, first.refresh_token!)).rejects.toThrow(/already used/)
+    expect(refresh).toHaveBeenCalledTimes(1) // never re-forwarded after the failure
+  })
+
   it('rejects a replayed refresh after the grace window without calling the API (F1)', async () => {
     let now = 1_000_000
     const { state, refresh } = refreshMock()
@@ -354,5 +380,39 @@ describe('GymOAuthProvider', () => {
     const expired = await p.completeLogin(loginToken, 'lifter', 'pw')
     expect(expired).toMatchObject({ kind: 'page', status: 400 })
     expect((expired as { html: string }).html).toContain('expired')
+  })
+
+  it('rejects an unknown client at completeLogin (F7)', async () => {
+    const sealer = new Sealer(SECRET, () => 1_000_000)
+    const p = new GymOAuthProvider({ sealer, apiAuth: {} as ApiAuth, resourceUrl: RESOURCE })
+    // A validly-sealed login state that points at a client id which does not open.
+    const loginToken = sealer.seal(
+      'login',
+      { c: 'not-a-real-client', r: 'https://claude.ai/api/mcp/auth_callback', ch: 'c', sc: [], rs: RESOURCE.href },
+      600,
+    )
+    const result = await p.completeLogin(loginToken, 'lifter', 'pw')
+    expect(result).toMatchObject({ kind: 'page', status: 400 })
+    expect((result as { html: string }).html).toContain('Unknown client')
+  })
+
+  it('enforces a DCR redirect_uri allowlist when configured (F2)', async () => {
+    const p = new GymOAuthProvider({
+      sealer: new Sealer(SECRET),
+      apiAuth: {} as ApiAuth,
+      resourceUrl: RESOURCE,
+      allowedRedirectUris: ['https://claude.ai/api/mcp/auth_callback'],
+    })
+    expect(() =>
+      p.clientsStore.registerClient!({
+        redirect_uris: ['https://evil.example/cb'],
+        token_endpoint_auth_method: 'none',
+      } as OAuthClientInformationFull),
+    ).toThrow(/not allowed/)
+    const ok = p.clientsStore.registerClient!({
+      redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+      token_endpoint_auth_method: 'none',
+    } as OAuthClientInformationFull)
+    expect(ok.client_id).toBeTruthy()
   })
 })

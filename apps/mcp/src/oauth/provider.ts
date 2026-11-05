@@ -14,6 +14,7 @@ import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/serv
 import type { AuthorizationParams, OAuthServerProvider } from '@modelcontextprotocol/sdk/server/auth/provider.js'
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js'
 import {
+  InvalidClientMetadataError,
   InvalidGrantError,
   InvalidTargetError,
   InvalidTokenError,
@@ -37,6 +38,8 @@ const FALLBACK_ACCESS_TTL_SECONDS = 15 * 60
  *  (a retried or concurrent request) is served the already-rotated pair instead
  *  of re-forwarding the spent API refresh token — see `exchangeRefreshToken`. */
 const REFRESH_GRACE_SECONDS = 60
+/** Prune the refresh bookkeeping maps once per this many refresh exchanges. */
+const REFRESH_PRUNE_EVERY = 64
 
 /** Scopes this server understands and can grant. Anything else a client asks
  *  for is dropped rather than echoed back as if granted. */
@@ -97,6 +100,10 @@ export interface GymOAuthProviderOptions {
   apiAuth: ApiAuth
   /** Canonical URL of the MCP endpoint, e.g. https://mcp.example.com/mcp */
   resourceUrl: URL
+  /** Optional allowlist of exact redirect URIs a client may register (DCR). When
+   *  empty, any redirect URI is accepted (and the consent page shows its host so
+   *  the user can spot a phishing client). */
+  allowedRedirectUris?: string[]
 }
 
 function sameResource(a: string, b: string): boolean {
@@ -108,6 +115,8 @@ export class GymOAuthProvider implements OAuthServerProvider {
   private readonly sealer: Sealer
   private readonly apiAuth: ApiAuth
   private readonly resource: string
+  /** Exact redirect URIs a client may register, or empty for no restriction. */
+  private readonly allowedRedirectUris: Set<string>
   /** jti → expiry, so a (stateless) code can only be redeemed once. */
   private readonly usedCodes = new Map<string, number>()
   /** Refresh-token jti → expiry of the "already redeemed" record. Once a refresh
@@ -122,6 +131,8 @@ export class GymOAuthProvider implements OAuthServerProvider {
   /** Refresh-token jti → in-flight refresh, so concurrent uses of one token share
    *  a single API call instead of each forwarding the same (single-use) token. */
   private readonly refreshInFlight = new Map<string, Promise<OAuthTokens>>()
+  /** Counts refresh exchanges to amortise the bookkeeping-map prune. */
+  private refreshOps = 0
 
   readonly clientsStore: OAuthRegisteredClientsStore
 
@@ -129,6 +140,7 @@ export class GymOAuthProvider implements OAuthServerProvider {
     this.sealer = opts.sealer
     this.apiAuth = opts.apiAuth
     this.resource = opts.resourceUrl.href
+    this.allowedRedirectUris = new Set(opts.allowedRedirectUris ?? [])
 
     this.clientsStore = {
       getClient: (clientId) => this.getClient(clientId),
@@ -141,9 +153,16 @@ export class GymOAuthProvider implements OAuthServerProvider {
   private registerClient(
     client: Omit<OAuthClientInformationFull, 'client_id' | 'client_id_issued_at'>,
   ): OAuthClientInformationFull {
+    const redirectUris = client.redirect_uris.map(String)
+    if (this.allowedRedirectUris.size > 0) {
+      const rejected = redirectUris.find((uri) => !this.allowedRedirectUris.has(uri))
+      if (rejected) {
+        throw new InvalidClientMetadataError(`redirect_uri is not allowed: ${rejected}`)
+      }
+    }
     const iat = this.sealer.nowSeconds()
     const payload: ClientPayload = {
-      redirect_uris: client.redirect_uris.map(String),
+      redirect_uris: redirectUris,
       token_endpoint_auth_method: client.token_endpoint_auth_method,
       grant_types: client.grant_types,
       response_types: client.response_types,
@@ -331,13 +350,14 @@ export class GymOAuthProvider implements OAuthServerProvider {
     // token is a stateless blob that can be presented again and again (retry,
     // double refresh, a stale copy in a client cache), we must forward the
     // embedded API token to `/auth/refresh` at most once per jti.
-    this.pruneRefresh()
+    this.maybePruneRefresh()
+    const now = this.sealer.nowSeconds()
     const cached = this.refreshResults.get(rt.j)
-    if (cached) return cached.tokens // retry within the grace window → same rotated pair
+    if (cached && cached.exp > now) return cached.tokens // retry within grace → same rotated pair
     const inFlight = this.refreshInFlight.get(rt.j)
     if (inFlight) return inFlight // concurrent refresh → share the one API call
     if (this.usedRefresh.has(rt.j)) {
-      // Already rotated once and past the grace window — reject locally instead
+      // Already redeemed once and past the grace window — reject locally instead
       // of re-forwarding the now-spent API token (which would trip revoke-all).
       throw new InvalidGrantError('Refresh token already used; sign in again')
     }
@@ -346,10 +366,17 @@ export class GymOAuthProvider implements OAuthServerProvider {
     this.refreshInFlight.set(rt.j, promise)
     try {
       const tokens = await promise
-      const now = this.sealer.nowSeconds()
-      this.usedRefresh.set(rt.j, now + REFRESH_TTL_SECONDS)
-      this.refreshResults.set(rt.j, { exp: now + REFRESH_GRACE_SECONDS, tokens })
+      this.usedRefresh.set(rt.j, opened.expiresAt)
+      this.refreshResults.set(rt.j, { exp: this.sealer.nowSeconds() + REFRESH_GRACE_SECONDS, tokens })
       return tokens
+    } catch (err) {
+      // The API may have rotated the token before this error reached us (an
+      // ambiguous timeout / 5xx, or even a definite 4xx on an already-revoked
+      // token). Either way, record the jti as used so a client retry is rejected
+      // locally rather than re-forwarding the token and tripping revoke-all —
+      // forcing a reconnect is strictly better than logging the user out.
+      this.usedRefresh.set(rt.j, opened.expiresAt)
+      throw err
     } finally {
       this.refreshInFlight.delete(rt.j)
     }
@@ -369,8 +396,12 @@ export class GymOAuthProvider implements OAuthServerProvider {
     return this.issueTokens(rt.c, rt.sc, rt.rs, tokens)
   }
 
-  /** Drop expired entries from the refresh bookkeeping maps. */
-  private pruneRefresh(): void {
+  /** Drop expired entries from the refresh bookkeeping maps, but only every
+   *  Nth call — each entry self-expires (its key can no longer be opened once
+   *  the sealed token itself expires), so the scan is just memory hygiene and
+   *  need not run on the hot path of every refresh. */
+  private maybePruneRefresh(): void {
+    if (this.refreshOps++ % REFRESH_PRUNE_EVERY !== 0) return
     const now = this.sealer.nowSeconds()
     for (const [id, exp] of this.usedRefresh) if (exp <= now) this.usedRefresh.delete(id)
     for (const [id, { exp }] of this.refreshResults) if (exp <= now) this.refreshResults.delete(id)

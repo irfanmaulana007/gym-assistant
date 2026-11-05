@@ -26,14 +26,16 @@ export interface LoginPageOptions {
   error?: string
 }
 
-/** Host (and, for loopback, port) the code would be sent to, or undefined when
- *  the redirect URI is missing/unparseable. */
-function redirectHost(redirectUri: string | undefined): string | undefined {
+/** A short, human-readable destination for the code: the host when there is one
+ *  (http/https), otherwise the full redirect URI (e.g. a custom-scheme or
+ *  loopback-less URI, where `host` is empty). Undefined only when missing. */
+function redirectLabel(redirectUri: string | undefined): string | undefined {
   if (!redirectUri) return undefined
   try {
-    return new URL(redirectUri).host
+    const u = new URL(redirectUri)
+    return u.host || redirectUri
   } catch {
-    return undefined
+    return redirectUri
   }
 }
 
@@ -41,9 +43,9 @@ export function renderLoginPage(opts: LoginPageOptions): string {
   // The client name comes from open dynamic registration, so it is attacker
   // controllable — label it unverified and show the real redirect destination.
   const client = opts.clientName ? escapeHtml(opts.clientName) : 'An MCP client'
-  const host = redirectHost(opts.redirectUri)
-  const destination = host
-    ? `<p class="dest">After you sign in, an access code is sent to <strong>${escapeHtml(host)}</strong>. Only continue if you recognise it.</p>`
+  const dest = redirectLabel(opts.redirectUri)
+  const destination = dest
+    ? `<p class="dest">After you sign in, an access code is sent to <strong>${escapeHtml(dest)}</strong>. Only continue if you recognise it.</p>`
     : ''
   const error = opts.error
     ? `<p class="error" role="alert">${escapeHtml(opts.error)}</p>`

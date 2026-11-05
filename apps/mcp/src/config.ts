@@ -36,6 +36,14 @@ function clean(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined
 }
 
+/** Split a comma/whitespace-separated env value into a trimmed, non-empty list. */
+function parseList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean)
+}
+
 function isLoopbackHost(hostname: string): boolean {
   return (
     hostname === 'localhost' ||
@@ -117,6 +125,8 @@ export interface HttpConfig {
   port: number
   /** Express `trust proxy` setting (hops). */
   trustProxy: number
+  /** Exact redirect URIs a client may register via DCR. Empty = no restriction. */
+  allowedRedirectUris: string[]
 }
 
 const MIN_SECRET_LENGTH = 32
@@ -169,5 +179,8 @@ export function loadHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfig
     // a fresh rate-limit bucket per request. Set MCP_TRUST_PROXY to the real hop
     // count only where a trusted proxy (e.g. Traefik) sits in front.
     trustProxy: resolveInt('MCP_TRUST_PROXY', env.MCP_TRUST_PROXY, 0, 0),
+    // Optional hardening: restrict DCR to an exact set of redirect URIs. Unset =
+    // accept any (the consent page then shows the destination host instead).
+    allowedRedirectUris: parseList(env.MCP_ALLOWED_REDIRECT_URIS),
   }
 }
