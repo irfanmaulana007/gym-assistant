@@ -21,11 +21,21 @@ const DefaultTracesSampleRate = 0.2
 // never traced — that would just burn quota on noise.
 var healthTxnSuffixes = []string{"/healthz", "/readyz"}
 
-// tracesSampler drops health-probe transactions and samples everything else at
-// DefaultTracesSampleRate. The transaction name at sampling time is
-// "<METHOD> <path>" (e.g. "GET /healthz"), set by the HTTP integration before
-// the router rewrites it to the route pattern.
-func tracesSampler(ctx sentry.SamplingContext) float64 {
+// TracesSampler is the Sentry performance sampling decision for a transaction.
+// Precedence:
+//
+//  1. Health probes (/healthz, /readyz) are never traced — they fire on a timer
+//     and carry no useful performance signal.
+//  2. An inherited sampling decision is honoured so a distributed trace is not
+//     split (head-based sampling): if the parent already decided, follow it.
+//     ParentSampled covers both a local parent and a remote decision carried in
+//     an incoming sentry-trace header.
+//  3. Otherwise sample at DefaultTracesSampleRate.
+//
+// The transaction name at sampling time is "<METHOD> <path>" (e.g. "GET
+// /healthz"), set by the HTTP integration before the router rewrites it to the
+// route pattern.
+func TracesSampler(ctx sentry.SamplingContext) float64 {
 	if ctx.Span != nil {
 		for _, suffix := range healthTxnSuffixes {
 			if strings.HasSuffix(ctx.Span.Name, suffix) {
@@ -33,6 +43,14 @@ func tracesSampler(ctx sentry.SamplingContext) float64 {
 			}
 		}
 	}
+
+	switch ctx.ParentSampled {
+	case sentry.SampledTrue:
+		return 1.0
+	case sentry.SampledFalse:
+		return 0.0
+	}
+
 	return DefaultTracesSampleRate
 }
 
@@ -58,8 +76,8 @@ func InitSentry(dsn, environment string) (flush func(), err error) {
 		Environment:   environment,
 		EnableTracing: true,
 		// TracesSampler takes precedence over TracesSampleRate; it lets us skip
-		// the health probes (see tracesSampler).
-		TracesSampler: sentry.TracesSampler(tracesSampler),
+		// the health probes and honour inherited decisions (see TracesSampler).
+		TracesSampler: sentry.TracesSampler(TracesSampler),
 	})
 	if err != nil {
 		return func() {}, err
