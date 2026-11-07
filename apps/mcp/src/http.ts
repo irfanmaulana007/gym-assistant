@@ -9,6 +9,7 @@
  */
 
 import express, { type Express, type Request, type Response } from 'express'
+import * as Sentry from '@sentry/node'
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from '@modelcontextprotocol/sdk/server/auth/router.js'
@@ -199,6 +200,11 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
   }
   app.get('/mcp', methodNotAllowed)
   app.delete('/mcp', methodNotAllowed)
+
+  // Report unhandled errors from the routes above to Sentry. Registered last so
+  // it sees errors from every preceding handler. Safe no-op when Sentry was
+  // never initialized (no SENTRY_DSN) — it reports to a client that drops events.
+  Sentry.setupExpressErrorHandler(app)
 
   return app
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/config"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/database"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/migrations"
+	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/observability"
 )
 
 func main() {
@@ -32,6 +33,17 @@ func run(logger *slog.Logger) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
+	}
+
+	// Initialize Sentry early so even startup errors below are captured. A no-op
+	// when SENTRY_DSN is unset. Flush buffered events on shutdown.
+	flushSentry, err := observability.InitSentry(cfg.SentryDSN, cfg.Env)
+	if err != nil {
+		return fmt.Errorf("init sentry: %w", err)
+	}
+	defer flushSentry()
+	if cfg.SentryDSN != "" {
+		logger.Info("sentry enabled", "environment", cfg.Env)
 	}
 
 	ctx := context.Background()

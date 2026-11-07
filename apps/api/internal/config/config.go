@@ -29,6 +29,10 @@ type Config struct {
 	// AllowedOrigins are the browser origins permitted by CORS. Defaults to the
 	// local web dev origin so the web app works out of the box.
 	AllowedOrigins []string
+	// SentryDSN enables Sentry error/performance monitoring when set. Empty
+	// disables Sentry entirely (the service still boots). A Sentry DSN is a
+	// public, non-secret identifier, so it has no required-secret validation.
+	SentryDSN string
 }
 
 // Load reads configuration from the environment and validates it.
@@ -62,6 +66,8 @@ func Load() (*Config, error) {
 	cfg.RefreshTokenTTL = time.Duration(refreshDays) * 24 * time.Hour
 
 	cfg.AllowedOrigins = parseOrigins(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173"))
+
+	cfg.SentryDSN = os.Getenv("SENTRY_DSN")
 
 	if cfg.DatabaseURL == "" {
 		problems = append(problems, "DATABASE_URL is required")

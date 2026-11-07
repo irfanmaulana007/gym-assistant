@@ -5,6 +5,8 @@
  * see config.ts.
  */
 
+// Initialize Sentry before anything else (no-op when SENTRY_DSN is unset).
+import './instrument.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { loadConfig } from './config.js'
 import { createServer } from './server.js'

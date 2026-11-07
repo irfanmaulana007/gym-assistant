@@ -4,6 +4,7 @@ package router
 import (
 	"net/http"
 
+	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 
@@ -37,6 +38,11 @@ func New(deps Deps) http.Handler {
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Recoverer)
+	// Sentry runs inside Recoverer: it captures the panic (and reports a request
+	// transaction for tracing), then re-panics so chi's Recoverer still writes
+	// the 500 response. Safe no-op when Sentry was never initialized (no DSN) —
+	// events simply go nowhere.
+	r.Use(sentryhttp.New(sentryhttp.Options{Repanic: true}).Handle)
 
 	// Health/readiness probes live outside the versioned API surface.
 	r.Get("/healthz", deps.Health.Live)
