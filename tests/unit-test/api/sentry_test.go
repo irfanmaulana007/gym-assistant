@@ -34,8 +34,15 @@ func TestInitSentry_NoDSNIsNoop(t *testing.T) {
 
 // TestInitSentry_WithDSNConfiguresClient verifies that a valid DSN installs a
 // Sentry client on the current hub and returns a non-nil flush.
+//
+// It installs a real client on the global hub, so it restores the previous
+// client in t.Cleanup — otherwise later tests in the package would run with
+// Sentry enabled against a real ingest host.
 func TestInitSentry_WithDSNConfiguresClient(t *testing.T) {
 	const dsn = "https://publickey@o0.ingest.sentry.io/0"
+
+	prev := sentry.CurrentHub().Client()
+	t.Cleanup(func() { sentry.CurrentHub().BindClient(prev) })
 
 	flush, err := observability.InitSentry(dsn, "test")
 	if err != nil {
@@ -46,7 +53,16 @@ func TestInitSentry_WithDSNConfiguresClient(t *testing.T) {
 	}
 	defer flush()
 
-	if sentry.CurrentHub().Client() == nil {
+	client := sentry.CurrentHub().Client()
+	if client == nil {
 		t.Fatal("InitSentry with a DSN must configure a Sentry client on the current hub")
+	}
+	// Assert the client actually took the DSN and environment we passed, not just
+	// that some client exists.
+	if got := client.Options().Dsn; got != dsn {
+		t.Errorf("client DSN = %q, want %q", got, dsn)
+	}
+	if got := client.Options().Environment; got != "test" {
+		t.Errorf("client Environment = %q, want %q", got, "test")
 	}
 }

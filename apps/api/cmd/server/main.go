@@ -35,16 +35,19 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 
-	// Initialize Sentry early so even startup errors below are captured. A no-op
-	// when SENTRY_DSN is unset. Flush buffered events on shutdown.
+	// Initialize Sentry so request-time errors (captured by the HTTP middleware)
+	// are reported. A no-op when SENTRY_DSN is unset. A malformed DSN must not
+	// take the API down: log a warning and continue with Sentry disabled —
+	// monitoring is optional infrastructure, not a boot dependency. Flush any
+	// buffered events on shutdown.
 	flushSentry, err := observability.InitSentry(cfg.SentryDSN, cfg.Env)
 	if err != nil {
-		return fmt.Errorf("init sentry: %w", err)
-	}
-	defer flushSentry()
-	if cfg.SentryDSN != "" {
+		logger.Warn("sentry disabled: invalid SENTRY_DSN", "error", err)
+		flushSentry = func() {}
+	} else if cfg.SentryDSN != "" {
 		logger.Info("sentry enabled", "environment", cfg.Env)
 	}
+	defer flushSentry()
 
 	ctx := context.Background()
 	pool, err := database.Connect(ctx, cfg.DatabaseURL)

@@ -5,6 +5,7 @@
 package observability
 
 import (
+	"strings"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -14,6 +15,26 @@ import (
 // sample a fraction of transactions for performance monitoring while always
 // capturing errors.
 const DefaultTracesSampleRate = 0.2
+
+// healthTxnSuffixes are the liveness/readiness probe paths. They fire on a timer
+// from the orchestrator and carry no useful performance signal, so they are
+// never traced — that would just burn quota on noise.
+var healthTxnSuffixes = []string{"/healthz", "/readyz"}
+
+// tracesSampler drops health-probe transactions and samples everything else at
+// DefaultTracesSampleRate. The transaction name at sampling time is
+// "<METHOD> <path>" (e.g. "GET /healthz"), set by the HTTP integration before
+// the router rewrites it to the route pattern.
+func tracesSampler(ctx sentry.SamplingContext) float64 {
+	if ctx.Span != nil {
+		for _, suffix := range healthTxnSuffixes {
+			if strings.HasSuffix(ctx.Span.Name, suffix) {
+				return 0.0
+			}
+		}
+	}
+	return DefaultTracesSampleRate
+}
 
 // flushTimeout bounds how long InitSentry's returned flush waits for buffered
 // events to drain on shutdown.
@@ -33,10 +54,12 @@ func InitSentry(dsn, environment string) (flush func(), err error) {
 	}
 
 	err = sentry.Init(sentry.ClientOptions{
-		Dsn:              dsn,
-		Environment:      environment,
-		EnableTracing:    true,
-		TracesSampleRate: DefaultTracesSampleRate,
+		Dsn:           dsn,
+		Environment:   environment,
+		EnableTracing: true,
+		// TracesSampler takes precedence over TracesSampleRate; it lets us skip
+		// the health probes (see tracesSampler).
+		TracesSampler: sentry.TracesSampler(tracesSampler),
 	})
 	if err != nil {
 		return func() {}, err

@@ -4,6 +4,7 @@ package router
 import (
 	"net/http"
 
+	"github.com/getsentry/sentry-go"
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -43,6 +44,10 @@ func New(deps Deps) http.Handler {
 	// the 500 response. Safe no-op when Sentry was never initialized (no DSN) —
 	// events simply go nowhere.
 	r.Use(sentryhttp.New(sentryhttp.Options{Repanic: true}).Handle)
+	// Relabel the Sentry transaction with chi's matched route pattern so
+	// performance data groups per endpoint, not per resource id. Runs inside the
+	// Sentry middleware so the renamed transaction is still captured at finish.
+	r.Use(sentryRouteName)
 
 	// Health/readiness probes live outside the versioned API surface.
 	r.Get("/healthz", deps.Health.Live)
@@ -130,4 +135,26 @@ func New(deps Deps) http.Handler {
 	})
 
 	return r
+}
+
+// sentryRouteName rewrites the current Sentry transaction's name to chi's
+// matched route pattern ("GET /api/v1/routines/{id}") instead of the raw path
+// ("GET /api/v1/routines/3f2c…"). It sets the name after the handler runs, once
+// chi has resolved the full pattern, and before the Sentry middleware (which
+// wraps this one) finishes and sends the transaction. A no-op when Sentry is
+// disabled (no transaction in context) or the route is unmatched.
+func sentryRouteName(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+
+		tx := sentry.TransactionFromContext(r.Context())
+		if tx == nil {
+			return
+		}
+		if rc := chi.RouteContext(r.Context()); rc != nil {
+			if pattern := rc.RoutePattern(); pattern != "" {
+				tx.Name = r.Method + " " + pattern
+			}
+		}
+	})
 }
