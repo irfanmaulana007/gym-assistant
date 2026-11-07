@@ -9,6 +9,7 @@
  */
 
 import express, { type Express, type Request, type Response } from 'express'
+import * as Sentry from '@sentry/node'
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from '@modelcontextprotocol/sdk/server/auth/router.js'
@@ -149,6 +150,9 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
         }
         sendLoginPage(res, result.status, result.html, result.redirectUri)
       } catch (err) {
+        // This handler catches its own errors and sends the 500 itself, so they
+        // never reach the Express error handler below — report them here too.
+        Sentry.captureException(err)
         process.stderr.write(`login handler error: ${err instanceof Error ? err.message : String(err)}\n`)
         res.status(500).type('text/plain').send('Internal error')
       }
@@ -183,6 +187,9 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
       await server.connect(transport)
       await transport.handleRequest(req, res, req.body)
     } catch (err) {
+      // Caught locally and answered with a JSON-RPC 500, so it never reaches the
+      // Express error handler — report it to Sentry here.
+      Sentry.captureException(err)
       process.stderr.write(`mcp request error: ${err instanceof Error ? err.message : String(err)}\n`)
       if (!res.headersSent) {
         res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal error' }, id: null })
@@ -199,6 +206,11 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
   }
   app.get('/mcp', methodNotAllowed)
   app.delete('/mcp', methodNotAllowed)
+
+  // Report unhandled errors from the routes above to Sentry. Registered last so
+  // it sees errors from every preceding handler. Safe no-op when Sentry was
+  // never initialized (no SENTRY_DSN) — it reports to a client that drops events.
+  Sentry.setupExpressErrorHandler(app)
 
   return app
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/config"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/internal/database"
 	"github.com/irfanmaulana007/gym-assistant/apps/api/migrations"
+	"github.com/irfanmaulana007/gym-assistant/apps/api/pkg/observability"
 )
 
 func main() {
@@ -33,6 +34,20 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+
+	// Initialize Sentry so request-time errors (captured by the HTTP middleware)
+	// are reported. A no-op when SENTRY_DSN is unset. A malformed DSN must not
+	// take the API down: log a warning and continue with Sentry disabled —
+	// monitoring is optional infrastructure, not a boot dependency. Flush any
+	// buffered events on shutdown.
+	flushSentry, err := observability.InitSentry(cfg.SentryDSN, cfg.Env)
+	if err != nil {
+		logger.Warn("sentry disabled: invalid SENTRY_DSN", "error", err)
+		flushSentry = func() {}
+	} else if cfg.SentryDSN != "" {
+		logger.Info("sentry enabled", "environment", cfg.Env)
+	}
+	defer flushSentry()
 
 	ctx := context.Background()
 	pool, err := database.Connect(ctx, cfg.DatabaseURL)

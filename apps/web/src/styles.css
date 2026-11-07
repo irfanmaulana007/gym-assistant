@@ -1005,3 +1005,25 @@ h1, h2, h3, p { margin: 0; }
   );
 }
 .muscle-usage-legend-label { flex: none; }
+
+/* Full-screen crash fallback (Sentry ErrorBoundary). Self-contained — it renders
+   outside the router, so it can't use the app shell. */
+.error-fallback {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--sp-6) + var(--safe-top)) var(--sp-4) calc(var(--sp-6) + var(--safe-bottom));
+  background: var(--bg);
+  color: var(--text);
+}
+.error-fallback-body {
+  width: 100%;
+  max-width: var(--max-width);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.error-fallback-title { font-size: 20px; font-weight: 650; }
+.error-fallback-text { color: var(--text-muted); font-size: 15px; }

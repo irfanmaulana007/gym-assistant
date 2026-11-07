@@ -5,6 +5,8 @@
  * loadHttpConfig in config.ts.
  */
 
+// Initialize Sentry before anything else (no-op when SENTRY_DSN is unset).
+import './instrument.js'
 import { loadHttpConfig } from './config.js'
 import { createHttpApp } from './http.js'
 

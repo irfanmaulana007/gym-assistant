@@ -41,4 +41,7 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -qO- http://127.0.0.1:${PORT:-3000}/healthz >/dev/null || exit 1
 
-CMD ["node", "dist/http-main.js"]
+# --import preloads the Sentry instrumentation before app modules so OpenTelemetry
+# auto-instrumentation can hook ESM (import-in-the-middle) — required for tracing
+# in a "type": "module" package. No-op when SENTRY_DSN is unset.
+CMD ["node", "--import", "./dist/instrument.js", "dist/http-main.js"]
