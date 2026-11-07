@@ -150,6 +150,9 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
         }
         sendLoginPage(res, result.status, result.html, result.redirectUri)
       } catch (err) {
+        // This handler catches its own errors and sends the 500 itself, so they
+        // never reach the Express error handler below — report them here too.
+        Sentry.captureException(err)
         process.stderr.write(`login handler error: ${err instanceof Error ? err.message : String(err)}\n`)
         res.status(500).type('text/plain').send('Internal error')
       }
@@ -184,6 +187,9 @@ export function createHttpApp(config: HttpConfig, opts: HttpAppOptions = {}): Ex
       await server.connect(transport)
       await transport.handleRequest(req, res, req.body)
     } catch (err) {
+      // Caught locally and answered with a JSON-RPC 500, so it never reaches the
+      // Express error handler — report it to Sentry here.
+      Sentry.captureException(err)
       process.stderr.write(`mcp request error: ${err instanceof Error ? err.message : String(err)}\n`)
       if (!res.headersSent) {
         res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal error' }, id: null })
