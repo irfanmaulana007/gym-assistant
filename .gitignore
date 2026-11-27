@@ -2,6 +2,8 @@
 .env
 .env.local
 .env.*.local
+# Per-developer Claude Code settings (personal plugins, permissions)
+.claude/settings.local.json
 *.local
 
 # ---- Go (apps/api) ----

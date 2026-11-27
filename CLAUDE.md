@@ -68,6 +68,12 @@ rows, don't denormalize.
   `[scope][type] Message` (scopes: `api`, `web`, `mobile`, `migration`,
   `scripts`, `docs`). Open PRs ready for review (not draft).
 - **PR labels** — exactly one, derived from the title's type bracket.
+- **Claude Code plugins are personal, not shared** — don't commit
+  `extraKnownMarketplaces` / `enabledPlugins` to `.claude/settings.json`: it is
+  loaded by every clone and by automated sessions (CI review, agents). Enable
+  plugins in your own `~/.claude/settings.json` or the untracked
+  `.claude/settings.local.json`. A plugin the whole team needs must be pinned to
+  a vetted commit SHA/tag and documented here (purpose, who vetted it) first.
 - **Security** — no hardcoded secrets (use env/config); validate all input;
   parameterized queries only; scope every query to the authenticated user.
 
